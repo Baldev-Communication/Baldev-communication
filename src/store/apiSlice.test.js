@@ -26,6 +26,19 @@ test('bulk draft retries preserve the upload key while a changed grouping is a n
   expect(mockRawQuery.mock.calls[1][0].body).toEqual({ resumeUpload: true });
 });
 
+test('grouped draft upload sends assignments and model details with its retry identity', async () => {
+  const files = [new File(['one'], 'one.webp', { type: 'image/webp' }), new File(['two'], 'two.webp', { type: 'image/webp' })];
+  mockRawQuery.mockResolvedValue({ data: { success: true, data: { drafts: [] } } });
+  const action = photoGroups => testStore.dispatch(samiraApi.endpoints.bulkUploadProductDrafts.initiate({ files, groupMode: 'grouped', photoGroups, groupDetails: { 1: { model: 'iPhone 17' } } }));
+  await action([1, 1]).unwrap();
+  await action([1, 2]).unwrap();
+  const [first, second] = mockRawQuery.mock.calls.map(([request]) => request);
+  expect(first.body.get('groupMode')).toBe('grouped');
+  expect(first.body.get('photoGroups')).toBe('[1,1]');
+  expect(JSON.parse(first.body.get('groupDetails'))[1].model).toBe('iPhone 17');
+  expect(second.headers['Idempotency-Key']).not.toBe(first.headers['Idempotency-Key']);
+});
+
 test('an incomplete bulk receipt continues the multipart upload with the original key', async () => {
   const photo = new File(['photo'], 'retry.webp', { type: 'image/webp' });
   mockRawQuery.mockResolvedValueOnce({ error: { status: 'FETCH_ERROR' } });

@@ -67,6 +67,39 @@ test('opens a focused editor, applies reviewed Smart Fill values, and saves with
   })));
 });
 
+test('creating photo drafts can open the first draft and run Smart Fill immediately', async () => {
+  URL.createObjectURL = jest.fn(() => 'blob:photo');
+  URL.revokeObjectURL = jest.fn();
+  const created = { ...draft, _id: 'new-photo-draft', name: '', category: null, images: [{ url: '/uploads/new-photo.webp', primary: true }] };
+  mockUpload.mockImplementation(() => ({ unwrap: async () => ({ success: true, data: { drafts: [created] } }) }));
+  api.post.mockResolvedValue({ mode: 'ai', suggestion: { name: 'Apple iPhone 17' }, fieldSources: {} });
+  render(<ProductDrafts />);
+  fireEvent.click(screen.getByRole('button', { name: 'Create from photos' }));
+  fireEvent.change(screen.getByLabelText(/Choose up to 30 product photos/), { target: { files: [new File(['photo'], 'phone.jpg', { type: 'image/jpeg' })] } });
+  fireEvent.click(screen.getByRole('button', { name: 'Create & start Smart Fill' }));
+  await waitFor(() => expect(mockUpload).toHaveBeenCalledWith(expect.objectContaining({ groupMode: 'single' })));
+  await waitFor(() => expect(api.post).toHaveBeenCalledWith('/admin/products/smart-fill', expect.objectContaining({ imageUrls: ['/uploads/new-photo.webp'] }), expect.any(Object)));
+  expect(screen.getByText('Review suggestions')).toBeInTheDocument();
+});
+
+test('invalid legacy Condition is visible as a choice and cannot repeatedly fail publication', async () => {
+  api.get.mockResolvedValue({ features: { sizing: false }, attributes: [{ key: 'condition', label: 'Condition', type: 'dropdown', required: true, options: ['New', 'Refurbished', 'Used'] }] });
+  mockQuery.data.data = [{ ...draft, attributeValues: { condition: 'Good' } }];
+  render(<ProductDrafts />);
+  fireEvent.click((await screen.findAllByRole('button', { name: 'Review' }))[0]);
+  const condition = await screen.findByRole('combobox', { name: /Condition/ });
+  expect(condition).toHaveValue('Good');
+  expect(screen.getByText('Allowed: New, Refurbished, Used')).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: /Save & publish/ }));
+  expect(await screen.findByRole('alert')).toHaveTextContent('Choose a valid Condition');
+  expect(condition).toHaveFocus();
+  expect(mockPublish).not.toHaveBeenCalled();
+  fireEvent.change(condition, { target: { value: 'Used' } });
+  fireEvent.click(screen.getByRole('button', { name: /Save & publish/ }));
+  await waitFor(() => expect(mockPublish).toHaveBeenCalled());
+  expect(mockSave).toHaveBeenCalledWith(expect.objectContaining({ body: expect.objectContaining({ attributeValues: { condition: 'Used' } }) }));
+});
+
 test('bulk selection publishes through the structured batch endpoint and keeps failed rows selected', async () => {
   mockPublish.mockImplementation(() => ({ unwrap: async () => ({ success: true, message: '1 draft published; 1 needs attention.', data: { results: [{ id: 'draft-a', status: 'published' }, { id: 'draft-b', status: 'failed', message: 'Add price' }] } }) }));
   render(<ProductDrafts />);

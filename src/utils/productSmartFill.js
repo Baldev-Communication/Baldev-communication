@@ -1,3 +1,5 @@
+import { firstInvalidDraftAttribute } from './draftAttributes';
+
 export const SMART_FIELDS = {
   name: 'Product name', brand: 'Brand', sku: 'SKU (generated product code)', category: 'Category', subCategory: 'Subcategory', shortDescription: 'Short description',
   description: 'Description', price: 'Selling price', originalPrice: 'Original price / MRP', colors: 'Colours', fabric: 'Fabric',
@@ -24,13 +26,22 @@ const empty = (value, key) => value === undefined || value === null || value ===
   || (['price', 'sellingPrice', 'originalPrice', 'shippingWeightKg'].includes(key) && Number(value) === 0);
 export const snapshotForm = form => JSON.parse(JSON.stringify(form));
 
+export function safeSearchSuggestionUrl(markup) {
+  const href = String(markup || '').match(/<a\b[^>]*\bhref\s*=\s*["']([^"']+)["']/i)?.[1];
+  if (!href) return '';
+  try {
+    const url = new URL(href.replace(/&amp;/gi, '&'));
+    return url.protocol === 'https:' && ['google.com', 'www.google.com', 'google.co.in', 'www.google.co.in'].includes(url.hostname) && url.pathname === '/search' ? url.href : '';
+  } catch { return ''; }
+}
+
 export function smartPhotos(form) {
   return [...new Set([form.image, ...(form.images || []).map(image => typeof image === 'string' ? image : image?.url)].filter(value => typeof value === 'string' && value && !/placeholder/i.test(value)))].slice(0, 12);
 }
 
-export function smartRequest(form, notes, imageUrls) {
-  const fields = ['name', 'category', 'subCategory', 'fabric', 'colors', 'sizes', 'occasion', 'description', 'attributeValues'];
-  return { notes, imageUrls, existing: Object.fromEntries(fields.map(key => [key, key === 'category' ? id(form.category) : form[key]])) };
+export function smartRequest(form, notes, imageUrls, webSearch = true) {
+  const fields = ['name', 'brand', 'category', 'categoryDefinitionKey', 'subCategory', 'fabric', 'colors', 'sizes', 'occasion', 'description', 'attributeValues'];
+  return { notes, imageUrls, webSearch, existing: Object.fromEntries(fields.map(key => [key, key === 'category' ? id(form.category) : form[key]])) };
 }
 
 export function suggestionRows(result, baseline, { categories = [], structure, priceField = 'price', seo = true } = {}) {
@@ -64,6 +75,7 @@ export function suggestionRows(result, baseline, { categories = [], structure, p
     const value = data.attributeValues?.[attribute.key];
     const key = 'attributeValues.' + attribute.key;
     if (typeof value !== 'string' || !value.trim()) continue;
+    if (firstInvalidDraftAttribute([attribute], { [attribute.key]: value })) continue;
     const before = fieldValue(baseline, key);
     if (!sameValue(value, before)) rows.push({ key, field: key, label: attribute.label, value, before, empty: empty(before, key), evidence: result.fieldSources?.['attribute.' + attribute.key] });
   }
@@ -76,6 +88,10 @@ export function selectedSmartPatch(rows, selected, form, replace = false) {
   patch = patch.filter(row => !['subCategory', 'sizes', 'sizingMode'].includes(row.key) || sameValue(id(form.category), row.categoryBefore));
   // Never retain a subcategory from a different parent category.
   const category = patch.find(row => row.key === 'category');
+  const suggestedCategory = rows.find(row => row.key === 'category');
+  if (suggestedCategory && !sameValue(id(form.category), suggestedCategory.value) && !category) {
+    patch = patch.filter(row => !row.key.startsWith('attributeValues.'));
+  }
   if (category && !sameValue(form.subCategory, category.subCategoryBefore)) patch = patch.filter(row => !['category', 'subCategory'].includes(row.key));
   else if (category && form.subCategory && !patch.some(row => row.key === 'subCategory')) {
     patch = [...patch, { key: 'subCategory', before: form.subCategory, value: '' }];

@@ -296,16 +296,17 @@ export const samiraApi = createApi({
       providesTags: ['AdminCategories'],
     }),
     bulkUploadProductDrafts: builder.mutation({
-      async queryFn({ files, groupMode = 'separate', apiPrefix = '/admin' }, api, extraOptions, baseQuery) {
+      async queryFn({ files, groupMode = 'separate', photoGroups = [], groupDetails = {}, apiPrefix = '/admin' }, api, extraOptions, baseQuery) {
         const prefix = apiPrefix === '/seller' ? '/seller' : '/admin';
         const path = `${prefix}/product-drafts/bulk-upload`;
-        const mode = groupMode === 'single' ? 'single' : 'separate';
+        const mode = ['single', 'grouped'].includes(groupMode) ? groupMode : 'separate';
+        const fields = { groupMode: mode, groupDetails: JSON.stringify(groupDetails), ...(mode === 'grouped' ? { photoGroups: JSON.stringify(photoGroups) } : {}) };
         let idempotencyKey;
         try {
           if (Array.from(files || []).some(file => file?.size > 20 * 1024 * 1024)) {
             return { error: { status: 400, data: { message: 'Each product photo must be under 20 MB before compression.' } } };
           }
-          idempotencyKey = await getDurableUploadRetryKey({ path, files, fields: { groupMode: mode }, scope: uploadScope(api.getState().auth) });
+          idempotencyKey = await getDurableUploadRetryKey({ path, files, fields, scope: uploadScope(api.getState().auth) });
           if (hasUploadAttempt(idempotencyKey)) {
             // All photos may already be stored even though draft save/response
             // failed. Resume by receipt, without posting the photos again.
@@ -334,7 +335,7 @@ export const samiraApi = createApi({
           }
           const formData = new FormData();
           preparedFiles.forEach((file) => formData.append('images', file));
-          formData.append('groupMode', groupMode === 'single' ? 'single' : 'separate');
+          for (const [key, value] of Object.entries(fields)) formData.append(key, value);
           markUploadAttempt(idempotencyKey);
           const result = await baseQuery({ url: path, method: 'POST', body: formData, headers: { 'Idempotency-Key': idempotencyKey } }, api, extraOptions);
           if (result.error) {

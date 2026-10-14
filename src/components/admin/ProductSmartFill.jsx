@@ -1,14 +1,16 @@
-import { useEffect, useId, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { ChevronDown, Loader2, Sparkles, Undo2 } from 'lucide-react';
 import api from '../../services/api';
 import { normalizeImageUrl } from '../../services/normalize';
-import { displaySmartValue, fieldValue, sameValue, selectedSmartPatch, smartPhotos, smartRequest, snapshotForm, suggestionRows } from '../../utils/productSmartFill';
+import { draftAttributeDefinitions } from '../../utils/draftAttributes';
+import { displaySmartValue, fieldValue, safeSearchSuggestionUrl, sameValue, selectedSmartPatch, smartPhotos, smartRequest, snapshotForm, suggestionRows } from '../../utils/productSmartFill';
 import './ProductSmartFill.css';
 
-export default function ProductSmartFill({ form, categories, structure, onApply, apiPrefix = '/admin', priceField = 'price', seo = true, disabled = false }) {
+export default function ProductSmartFill({ form, categories, structure, onApply, apiPrefix = '/admin', priceField = 'price', seo = true, disabled = false, autoStart = false }) {
   const uid = useId();
   const [open, setOpen] = useState(false);
   const [notes, setNotes] = useState('');
+  const [webSearch, setWebSearch] = useState(true);
   const [selection, setSelection] = useState(null);
   const [status, setStatus] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -19,12 +21,14 @@ export default function ProductSmartFill({ form, categories, structure, onApply,
   const [replace, setReplace] = useState(false);
   const [undo, setUndo] = useState(null);
   const request = useRef(null);
-  const photos = smartPhotos(form);
-  const chosen = (selection ?? photos.slice(0, 3)).filter(url => photos.includes(url)).slice(0, 3);
-  const inputs = JSON.stringify({ notes, photos: chosen });
+  const autoStarted = useRef(false);
+  const photos = useMemo(() => smartPhotos(form), [form]);
+  const chosen = useMemo(() => (selection ?? photos.slice(0, 4)).filter(url => photos.includes(url)).slice(0, 4), [selection, photos]);
+  const inputs = JSON.stringify({ notes, photos: chosen, webSearch, name: form.name, category: form.category?._id || form.category, model: form.attributeValues?.model, ram: form.attributeValues?.ram, storage: form.attributeValues?.storage });
   const stale = preview && preview.inputs !== inputs;
 
   useEffect(() => () => request.current?.abort(), []);
+  useEffect(() => { if (autoStart) setOpen(true); }, [autoStart]);
   useEffect(() => {
     if (!open) return undefined;
     let alive = true;
@@ -34,16 +38,20 @@ export default function ProductSmartFill({ form, categories, structure, onApply,
     return () => { alive = false; };
   }, [open, apiPrefix]);
 
-  const analyze = async () => {
+  const analyze = useCallback(async () => {
     if (request.current || disabled) return;
     const controller = new AbortController(); request.current = controller;
     setBusy(true); setError(''); setNotice(''); setPreview(null); setReplace(false);
     const baseline = snapshotForm(form);
     try {
-      const result = await api.post(`${apiPrefix}/products/smart-fill`, smartRequest(baseline, notes, chosen), { silent: true, signal: controller.signal });
+      const result = await api.post(`${apiPrefix}/products/smart-fill`, smartRequest(baseline, notes, chosen, webSearch), { silent: true, signal: controller.signal });
       if (controller.signal.aborted) return;
-      const rows = suggestionRows(result, baseline, { categories, structure, priceField, seo });
-      setPreview({ rows, warnings: result.warnings || [], mode: result.mode, inputs });
+      const reviewAttributes = draftAttributeDefinitions(structure, categories, {
+        ...baseline, category: result.suggestion?.category || baseline.category,
+        subCategory: result.suggestion?.subCategory || baseline.subCategory,
+      });
+      const rows = suggestionRows(result, baseline, { categories, structure: { ...structure, attributes: reviewAttributes }, priceField, seo });
+      setPreview({ rows, warnings: result.warnings || [], webSources: result.webSources || [], searchSuggestions: result.searchSuggestions || '', mode: result.mode, inputs });
       setSelected(rows.filter(row => row.empty).map(row => row.key));
       if (!rows.length && !result.warnings?.length) setNotice('No additional fields to fill from these inputs. Your existing details are unchanged.');
     } catch (failure) {
@@ -51,9 +59,14 @@ export default function ProductSmartFill({ form, categories, structure, onApply,
     } finally {
       if (request.current === controller) { request.current = null; setBusy(false); }
     }
-  };
+  }, [apiPrefix, categories, chosen, disabled, form, inputs, notes, priceField, seo, structure, webSearch]);
+  useEffect(() => {
+    if (!autoStart || !open || disabled || autoStarted.current) return;
+    autoStarted.current = true;
+    analyze();
+  }, [autoStart, open, disabled, analyze]);
   const togglePhoto = (url) => {
-    setSelection(chosen.includes(url) ? chosen.filter(item => item !== url) : chosen.length < 3 ? [...chosen, url] : chosen);
+    setSelection(chosen.includes(url) ? chosen.filter(item => item !== url) : chosen.length < 4 ? [...chosen, url] : chosen);
   };
   const patch = preview && !stale ? selectedSmartPatch(preview.rows, selected, form, replace) : [];
   const apply = () => {
@@ -71,14 +84,15 @@ export default function ProductSmartFill({ form, categories, structure, onApply,
     {open && <div id={uid} className="product-smart-fill__body">
       <p>Use clear views of one product. Review suggested details before adding them to your form.</p>
       {!!photos.length && <div>
-        <p className="product-smart-fill__label">Product photos <span>{chosen.length}/3 selected</span></p>
-        <div className="product-smart-fill__photos">{photos.map((url, index) => <button key={url} type="button" disabled={busy || disabled || (!chosen.includes(url) && chosen.length >= 3)} aria-pressed={chosen.includes(url)} aria-label={`Use product photo ${index + 1}`} onClick={() => togglePhoto(url)}>
+        <p className="product-smart-fill__label">Product photos <span>{chosen.length}/4 selected</span></p>
+        <div className="product-smart-fill__photos">{photos.map((url, index) => <button key={url} type="button" disabled={busy || disabled || (!chosen.includes(url) && chosen.length >= 4)} aria-pressed={chosen.includes(url)} aria-label={`Use product photo ${index + 1}`} onClick={() => togglePhoto(url)}>
           <img src={normalizeImageUrl(url)} alt={`Product view ${index + 1}`} loading="lazy" /><span>{chosen.includes(url) ? 'Selected' : 'Select'}</span>
         </button>)}</div>
       </div>}
       <label className="product-smart-fill__label" htmlFor={uid + '-notes'}>Supplier notes or product details</label>
-      <textarea id={uid + '-notes'} rows={4} maxLength={7000} value={notes} disabled={busy || disabled} onChange={event => setNotes(event.target.value)} placeholder={'Paste details in English, Hindi or Hinglish. For example:\nName: Wine embroidered saree\nFabric: Georgette\nSelling price: Rs 1299\nMRP: Rs 1999'} />
-      <p className="product-smart-fill__hint">{status?.enabled === false ? 'Photo AI is not configured. You can still fill explicitly stated details from notes.' : 'Uses your selected photos and details already entered. Add photos in the product photo section.'} Stock stays manual. Brand, packed dimensions, weight, price and sizes are suggested only when stated on a label or in your notes.</p>
+      <textarea id={uid + '-notes'} rows={4} maxLength={7000} value={notes} disabled={busy || disabled} onChange={event => setNotes(event.target.value)} placeholder={'Paste details in English, Hindi or Hinglish. For example:\nModel: Samsung Galaxy A15 5G\nRAM: 8 GB\nStorage: 128 GB\nOr add fabric, size and price for other products.'} />
+      <label className="product-smart-fill__choice"><input type="checkbox" checked={webSearch} disabled={busy || disabled || status?.webSupported === false} onChange={event => setWebSearch(event.target.checked)} />Search the internet for model specifications with Gemini</label>
+      <p className="product-smart-fill__hint">{status?.enabled === false ? 'Gemini is not configured. You can still fill explicitly stated details from notes.' : 'Add the exact phone model and RAM/storage GB in the form or notes for web specs. Selected photos can identify the model from its label.'} Review web sources and your exact variant before applying. Stock and selling price stay manual unless explicitly stated in your notes or photo.</p>
       <div className="product-smart-fill__actions">
         <button type="button" className="admin-btn" disabled={busy || disabled} onClick={analyze}>{busy ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}{busy ? 'Reading product details…' : 'Suggest details'}</button>
         {busy && <button type="button" className="admin-btn-ghost" onClick={() => { request.current?.abort(); request.current = null; setBusy(false); setNotice('Analysis cancelled.'); }}>Cancel</button>}
@@ -87,8 +101,10 @@ export default function ProductSmartFill({ form, categories, structure, onApply,
       {error && <p role="alert" className="product-smart-fill__warning">{error}</p>}
       {notice && <p role="status" className="product-smart-fill__notice">{notice}</p>}
       {preview && <div className="product-smart-fill__review">
-        <div className="product-smart-fill__review-heading"><strong>Review suggestions</strong><span>{preview.mode === 'ai' ? 'Photos & context' : 'From your notes'}</span></div>
+        <div className="product-smart-fill__review-heading"><strong>Review suggestions</strong><span>{preview.mode === 'web' ? 'Photos, notes & web' : preview.mode === 'ai' ? 'Photos & context' : 'From your notes'}</span></div>
         {preview.warnings.map(warning => <p key={warning} role="status" className="product-smart-fill__warning">{warning}</p>)}
+        {!!preview.webSources.length && <div className="product-smart-fill__sources"><strong>Web sources</strong>{preview.webSources.map(source => <a key={source.url} href={source.url} target="_blank" rel="noopener noreferrer">{source.title}</a>)}</div>}
+        {safeSearchSuggestionUrl(preview.searchSuggestions) && <a className="product-smart-fill__search-suggestions" href={safeSearchSuggestionUrl(preview.searchSuggestions)} target="_blank" rel="noopener noreferrer">Google Search suggestions</a>}
         {stale && <p role="status" className="product-smart-fill__warning">Your photos or notes changed. Suggest details again before applying.</p>}
         {!!preview.rows.length && <>
           <label className="product-smart-fill__choice"><input type="checkbox" checked={replace} disabled={disabled || stale} onChange={event => { setReplace(event.target.checked); if (!event.target.checked) setSelected(preview.rows.filter(row => row.empty).map(row => row.key)); }} />Allow replacing selected existing details</label>
@@ -100,7 +116,7 @@ export default function ProductSmartFill({ form, categories, structure, onApply,
               <span><strong>{row.label}</strong><span className="product-smart-fill__value">{displaySmartValue(row.value, row.key, categories)}</span>
                 {!row.empty && <small>Current: {displaySmartValue(fieldValue(form, row.key), row.key, categories)}</small>}
                 {changed && <small>Edited since analysis — your change is protected.</small>}
-                {row.evidence?.quote && <small>Source: {row.evidence.quote}</small>}
+                {row.evidence?.quote && <small>Source: {row.evidence.quote}{row.evidence.url && <>{' '}<a href={row.evidence.url} target="_blank" rel="noopener noreferrer">Open source</a></>}</small>}
               </span>
             </label>;
           })}</div>
