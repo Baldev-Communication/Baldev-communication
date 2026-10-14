@@ -1,7 +1,8 @@
 export const SMART_FIELDS = {
-  name: 'Product name', sku: 'SKU (generated product code)', category: 'Category', subCategory: 'Subcategory', shortDescription: 'Short description',
+  name: 'Product name', brand: 'Brand', sku: 'SKU (generated product code)', category: 'Category', subCategory: 'Subcategory', shortDescription: 'Short description',
   description: 'Description', price: 'Selling price', originalPrice: 'Original price / MRP', colors: 'Colours', fabric: 'Fabric',
   occasion: 'Occasion', tags: 'Tags', highlights: 'Highlights', sizes: 'Available sizes', sizingMode: 'Sizing',
+  countryOfOrigin: 'Country of origin', packageDimensions: 'Packed dimensions', shippingWeightKg: 'Packed weight',
   metaTitle: 'SEO title', metaDescription: 'SEO description', metaKeywords: 'SEO keywords',
 };
 export const sameValue = (a, b) => JSON.stringify(a ?? '') === JSON.stringify(b ?? '');
@@ -17,8 +18,10 @@ function generatedProductCode() {
 }
 export const fieldValue = (form, key) => key.startsWith('attributeValues.') ? form.attributeValues?.[key.split('.')[1]] : key === 'category' ? id(form.category) : form[key];
 const empty = (value, key) => value === undefined || value === null || value === '' || (Array.isArray(value) && !value.length)
+  || (key === 'brand' && value === 'Baldev Communication')
+  || (key === 'packageDimensions' && (!value || Object.values(value).every(item => !Number(item))))
   || (typeof value === 'string' && !value.trim()) || (key === 'sizingMode' && value === 'auto')
-  || (['price', 'sellingPrice', 'originalPrice'].includes(key) && Number(value) === 0);
+  || (['price', 'sellingPrice', 'originalPrice', 'shippingWeightKg'].includes(key) && Number(value) === 0);
 export const snapshotForm = form => JSON.parse(JSON.stringify(form));
 
 export function smartPhotos(form) {
@@ -101,5 +104,7 @@ export function displaySmartValue(value, key, categories = []) {
   if (key === 'category') return categories.find(category => String(category._id) === String(id(value)))?.name || String(id(value));
   if (key === 'sizingMode') return value === 'free-size' ? 'No size selection / free size' : value === 'sized' ? 'Selectable sizes' : 'Automatic';
   if (['price', 'sellingPrice', 'originalPrice'].includes(key)) return Number(value) > 0 ? '\u20b9' + Number(value).toLocaleString('en-IN') : 'Not added';
+  if (key === 'packageDimensions') return ['lengthCm', 'widthCm', 'heightCm'].map(field => Number(value?.[field] || 0)).join(' × ') + ' cm';
+  if (key === 'shippingWeightKg') return `${Number(value || 0)} kg`;
   return Array.isArray(value) ? value.join(', ') : String(value ?? '');
 }

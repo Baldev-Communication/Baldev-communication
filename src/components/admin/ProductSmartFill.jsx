@@ -78,7 +78,7 @@ export default function ProductSmartFill({ form, categories, structure, onApply,
       </div>}
       <label className="product-smart-fill__label" htmlFor={uid + '-notes'}>Supplier notes or product details</label>
       <textarea id={uid + '-notes'} rows={4} maxLength={7000} value={notes} disabled={busy || disabled} onChange={event => setNotes(event.target.value)} placeholder={'Paste details in English, Hindi or Hinglish. For example:\nName: Wine embroidered saree\nFabric: Georgette\nSelling price: Rs 1299\nMRP: Rs 1999'} />
-      <p className="product-smart-fill__hint">{status?.enabled === false ? 'Photo AI is not configured. You can still fill explicitly stated details from notes.' : 'Uses your selected photos and details already entered. Add photos in the product photo section.'} Stock stays manual. Price and available sizes are suggested only when stated.</p>
+      <p className="product-smart-fill__hint">{status?.enabled === false ? 'Photo AI is not configured. You can still fill explicitly stated details from notes.' : 'Uses your selected photos and details already entered. Add photos in the product photo section.'} Stock stays manual. Brand, packed dimensions, weight, price and sizes are suggested only when stated on a label or in your notes.</p>
       <div className="product-smart-fill__actions">
         <button type="button" className="admin-btn" disabled={busy || disabled} onClick={analyze}>{busy ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}{busy ? 'Reading product details…' : 'Suggest details'}</button>
         {busy && <button type="button" className="admin-btn-ghost" onClick={() => { request.current?.abort(); request.current = null; setBusy(false); setNotice('Analysis cancelled.'); }}>Cancel</button>}

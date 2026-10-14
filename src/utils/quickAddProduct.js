@@ -93,7 +93,7 @@ export function matchSuggestionCategory(categories = [], suggestion = {}) {
     || null;
 }
 
-export function applyVisionSuggestion(form, suggestion = {}, locks = {}, categories = []) {
+export function applyVisionSuggestion(form, suggestion = {}, locks = {}, categories = [], attributes = []) {
   if (!suggestion || typeof suggestion !== 'object') return form;
   const next = { ...form };
   const matched = matchSuggestionCategory(categories, suggestion);
@@ -109,6 +109,16 @@ export function applyVisionSuggestion(form, suggestion = {}, locks = {}, categor
     if (suggestion.shortDescription) next.shortDescription = clip(suggestion.shortDescription, 200);
     if (suggestion.description) next.description = clip(suggestion.description, 800);
   }
+  if (suggestion.brand && (!String(next.brand || '').trim() || next.brand === QUICK_ADD_DEFAULTS.brand)) {
+    next.brand = clip(suggestion.brand, 120);
+    if (attributes.some(attribute => attribute.key === 'brand')) next.attributeValues = { ...next.attributeValues, brand: next.brand };
+  }
+  if (suggestion.countryOfOrigin && !String(next.countryOfOrigin || '').trim()) {
+    next.countryOfOrigin = clip(suggestion.countryOfOrigin, 120);
+    if (attributes.some(attribute => attribute.key === 'country_of_origin')) next.attributeValues = { ...next.attributeValues, country_of_origin: next.countryOfOrigin };
+  }
+  if (Number(suggestion.shippingWeightKg) > 0 && !Number(next.shippingWeightKg)) next.shippingWeightKg = Number(suggestion.shippingWeightKg);
+  if (suggestion.packageDimensions && !['lengthCm', 'widthCm', 'heightCm'].some(key => Number(next.packageDimensions?.[key]) > 0)) next.packageDimensions = suggestion.packageDimensions;
   if (!String(next.fabric || '').trim() && suggestion.fabric) next.fabric = clip(suggestion.fabric, 80);
   if (!String(next.occasion || '').trim() && suggestion.occasion) next.occasion = clip(suggestion.occasion, 80);
   if (!String(next.colors || '').trim() && suggestion.colors?.length) next.colors = joinList(suggestion.colors);
@@ -147,6 +157,15 @@ export function validateQuickAdd(form) {
   else if (!Number.isFinite(Number(form.stock))) errors.stock = 'Stock must be a number.';
   else if (Number(form.stock) < 0) errors.stock = 'Stock cannot be negative.';
   if (!Array.isArray(form.images) || !form.images.length) errors.images = 'Upload at least one product image.';
+  const dimensions = ['lengthCm', 'widthCm', 'heightCm'].map(key => form.packageDimensions?.[key]);
+  if (dimensions.some(value => value !== undefined && value !== '')
+    && !dimensions.every(value => Number.isFinite(Number(value)) && Number(value) > 0 && Number(value) <= 1000)) {
+    errors.packageDimensions = 'Enter all three package dimensions between 0 and 1000 cm.';
+  }
+  if (form.shippingWeightKg !== undefined && form.shippingWeightKg !== ''
+    && (!Number.isFinite(Number(form.shippingWeightKg)) || Number(form.shippingWeightKg) <= 0 || Number(form.shippingWeightKg) > 1000)) {
+    errors.shippingWeightKg = 'Packed weight must be between 0 and 1000 kg.';
+  }
   return errors;
 }
 
@@ -188,6 +207,10 @@ export function buildQuickAddPayload(form) {
     slug: generateSlug(name),
     sku: makeQuickAddSku({ categoryName, name }),
     brand: String(form.brand || QUICK_ADD_DEFAULTS.brand).trim() || QUICK_ADD_DEFAULTS.brand,
+    ...(String(form.countryOfOrigin || '').trim() ? { countryOfOrigin: String(form.countryOfOrigin).trim() } : {}),
+    ...(Number(form.shippingWeightKg) > 0 ? { shippingWeightKg: Number(form.shippingWeightKg) } : {}),
+    ...(['lengthCm', 'widthCm', 'heightCm'].every(key => Number(form.packageDimensions?.[key]) > 0)
+      ? { packageDimensions: Object.fromEntries(['lengthCm', 'widthCm', 'heightCm'].map(key => [key, Number(form.packageDimensions[key])])) } : {}),
     category: form.category,
     subCategory: String(form.subCategory || '').trim(),
     price,

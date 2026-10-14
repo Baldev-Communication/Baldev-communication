@@ -101,6 +101,12 @@ export default function QuickAddProduct() {
   const update = (field, value) => {
     setForm((current) => {
       const next = { ...current, [field]: value };
+      if (field === 'brand' && structure?.attributes?.some(attribute => attribute.key === 'brand')) {
+        next.attributeValues = { ...current.attributeValues, brand: value };
+      }
+      if (field === 'countryOfOrigin' && structure?.attributes?.some(attribute => attribute.key === 'country_of_origin')) {
+        next.attributeValues = { ...current.attributeValues, country_of_origin: value };
+      }
       if (field === 'category') {
         const categoryName = categories.find((item) => item._id === value)?.name || '';
         next.subCategory = '';
@@ -131,7 +137,7 @@ export default function QuickAddProduct() {
     setAnalyzing(true);
     setVisionNote(visionEnabledRef.current === false
       ? 'Photo AI is off — using filename only until GEMINI_API_KEY is set.'
-      : 'Looking at the garment…');
+      : 'Looking at the product…');
     try {
       const result = await api.post('/admin/products/quick-analyze', {
         imageUrl,
@@ -149,17 +155,17 @@ export default function QuickAddProduct() {
 
       setVisionEnabled(true);
       if (!result?.suggestion?.name) {
-        setVisionNote('Could not identify this garment clearly. Try a brighter front photo, or fill the fields yourself.');
+        setVisionNote('Could not identify this product clearly. Try a brighter front photo, or fill the fields yourself.');
         applyFilenameFallback(images);
         return;
       }
 
-      const extras = result.suggestion.fabric || result.suggestion.occasion || result.suggestion.colors?.length || result.suggestion.tags?.length;
+      const extras = result.suggestion.fabric || result.suggestion.occasion || result.suggestion.colors?.length || result.suggestion.tags?.length || result.suggestion.brand || result.suggestion.packageDimensions || result.suggestion.shippingWeightKg;
       setForm((current) => applyVisionSuggestion(current, result.suggestion, {
         name: nameTouchedRef.current,
         copy: copyTouchedRef.current,
         category: categoryTouchedRef.current,
-      }, categoriesRef.current));
+      }, categoriesRef.current, structure?.attributes || []));
       if (extras) setMoreOpen(true);
       setVisionNote('Identified from the photo. Check the fields, then add price and stock.');
     } catch (error) {
@@ -330,12 +336,12 @@ export default function QuickAddProduct() {
               onBusyChange={setMediaBusy}
               onChange={onImagesChange}
             />
-            {analyzing && <p className="admin-quick-add__status is-busy">Looking at the garment…</p>}
+            {analyzing && <p className="admin-quick-add__status is-busy">Looking at the product…</p>}
             {!analyzing && visionNote && <p className="admin-quick-add__status">{visionNote}</p>}
             {errors.images && <p className="admin-field__error mt-2">{errors.images}</p>}
           </div>
 
-          {structure?.attributes?.map((attribute) => <label key={attribute.key} className="admin-field mt-4"><span>{attribute.label}{attribute.unit ? ` (${attribute.unit})` : ''}{attribute.required && <em>*</em>}</span><input className="admin-field__control" maxLength={500} value={form.attributeValues?.[attribute.key] ?? ''} onChange={(event) => { update('attributeValues', { ...form.attributeValues, [attribute.key]: event.target.value }); setErrors((current) => ({ ...current, [attribute.key]: undefined })); }} />{errors[attribute.key] && <span className="admin-field__error">{errors[attribute.key]}</span>}</label>)}
+          {structure?.attributes?.map((attribute) => <label key={attribute.key} className="admin-field mt-4"><span>{attribute.label}{attribute.unit ? ` (${attribute.unit})` : ''}{attribute.required && <em>*</em>}</span><input className="admin-field__control" maxLength={500} value={form.attributeValues?.[attribute.key] ?? ''} onChange={(event) => { if (attribute.key === 'brand') update('brand', event.target.value); else if (attribute.key === 'country_of_origin') update('countryOfOrigin', event.target.value); else update('attributeValues', { ...form.attributeValues, [attribute.key]: event.target.value }); setErrors((current) => ({ ...current, [attribute.key]: undefined })); }} />{errors[attribute.key] && <span className="admin-field__error">{errors[attribute.key]}</span>}</label>)}
           {structure && <div className="mt-4"><ImportSizeFields form={form} onUpdate={update} categories={categories} structure={structure} />{errors.sizing && <p role="alert" className="admin-field__error">{errors.sizing}</p>}</div>}
         </div>
 
@@ -473,6 +479,10 @@ export default function QuickAddProduct() {
                 <span>Brand</span>
                 <input value={form.brand} onChange={(event) => update('brand', event.target.value)} className="admin-field__control" />
               </label>
+              <label className="admin-field"><span>Country of origin</span><input value={form.countryOfOrigin || ''} onChange={(event) => update('countryOfOrigin', event.target.value)} className="admin-field__control" /></label>
+              <label className="admin-field"><span>Packed weight (kg)</span><input type="number" min="0" step="0.01" value={form.shippingWeightKg ?? ''} onChange={(event) => update('shippingWeightKg', event.target.value)} className="admin-field__control" />{errors.shippingWeightKg && <span className="admin-field__error">{errors.shippingWeightKg}</span>}</label>
+              {['lengthCm', 'widthCm', 'heightCm'].map((key) => <label key={key} className="admin-field"><span>Package {key.replace('Cm', '')} (cm)</span><input type="number" min="0" step="0.1" value={form.packageDimensions?.[key] ?? ''} onChange={(event) => update('packageDimensions', { ...form.packageDimensions, [key]: event.target.value })} className="admin-field__control" /></label>)}
+              {errors.packageDimensions && <p className="admin-field__error">{errors.packageDimensions}</p>}
               <label className="admin-field"><span>Highlights</span><input value={form.highlights || ''} onChange={event => update('highlights', event.target.value)} className="admin-field__control" placeholder="Separate highlights with commas" /></label>
               <label className="admin-field">
                 <span>Fabric</span>

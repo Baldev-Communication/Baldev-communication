@@ -302,6 +302,9 @@ export const samiraApi = createApi({
         const mode = groupMode === 'single' ? 'single' : 'separate';
         let idempotencyKey;
         try {
+          if (Array.from(files || []).some(file => file?.size > 20 * 1024 * 1024)) {
+            return { error: { status: 400, data: { message: 'Each product photo must be under 20 MB before compression.' } } };
+          }
           idempotencyKey = await getDurableUploadRetryKey({ path, files, fields: { groupMode: mode }, scope: uploadScope(api.getState().auth) });
           if (hasUploadAttempt(idempotencyKey)) {
             // All photos may already be stored even though draft save/response
