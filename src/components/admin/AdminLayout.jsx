@@ -3,6 +3,7 @@ import AdminHeader from './AdminHeader';
 import AdminSidebar from './AdminSidebar';
 import ClientSubscriptionNotice from './ClientSubscriptionNotice';
 import './AdminShell.css';
+import './AdminDensity.css';
 
 export default function AdminLayout({ children }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);

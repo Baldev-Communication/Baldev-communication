@@ -88,13 +88,12 @@ export default function BusinessCenter() {
   ].filter(Boolean);
 
   return (
-    <section className="mx-auto max-w-[1460px] space-y-5 pb-8 text-slate-900">
+    <section className="business-center mx-auto max-w-[1460px] space-y-5 pb-8 text-slate-900">
       <header className="overflow-hidden rounded-[28px] border border-[#6f1734] bg-[#711a37] text-white shadow-[0_18px_55px_rgba(80,22,42,.18)]">
         <div className="grid gap-5 p-5 sm:p-7 xl:grid-cols-[1fr_auto] xl:items-end">
           <div>
             <div className="flex flex-wrap items-center gap-2 text-[10px] font-black uppercase tracking-[0.18em] text-[#f5cad7]"><Sparkles size={14} /> Live operations workspace <span className="h-1 w-1 rounded-full bg-white/40" /> {overview.store.name}</div>
             <h1 className="mt-2 font-display text-3xl font-black sm:text-4xl">Know what needs attention today</h1>
-            <p className="mt-2 max-w-2xl text-sm leading-6 text-white/75">Real store data, clear next actions and measured outcomes in one place.</p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <div className="flex rounded-xl border border-white/20 bg-black/10 p-1" aria-label="Business report period">
@@ -185,7 +184,7 @@ function Kpi({ icon: Icon, label, value, change, note }) {
 }
 function Change({ value, positive, negative }) { if (value == null) return <span className="rounded-full bg-blue-50 px-2 py-1 text-[10px] font-black text-blue-700">New</span>; return <span className={`flex items-center gap-1 rounded-full px-2 py-1 text-[10px] font-black ${positive ? 'bg-emerald-50 text-emerald-700' : negative ? 'bg-rose-50 text-rose-700' : 'bg-slate-50 text-slate-500'}`}>{positive ? <TrendingUp size={12} /> : negative ? <TrendingDown size={12} /> : null}{Math.abs(value)}% vs prior</span>; }
 function MiniMetric({ label, value }) { return <div className="min-w-0 rounded-2xl bg-[#fbf7f4] p-3"><p className="truncate text-[9px] font-black uppercase tracking-wider text-slate-400">{label}</p><p className="mt-1 truncate text-base font-black text-wine">{value}</p></div>; }
-function SectionTitle({ eyebrow, title, note }) { return <div><p className="text-[10px] font-black uppercase tracking-[0.16em] text-wine">{eyebrow}</p><h2 className="mt-1 font-display text-xl font-black sm:text-2xl">{title}</h2>{note && <p className="mt-1 text-xs leading-5 text-slate-500">{note}</p>}</div>; }
+function SectionTitle({ title, note }) { return <div><h2 className="font-display text-xl font-black sm:text-2xl">{title}</h2>{note && <p className="mt-1 text-xs leading-5 text-slate-500">{note}</p>}</div>; }
 function PriorityIcon({ id }) { if (id === 'fulfilment') return <PackageCheck size={17} />; if (id === 'returns') return <RotateCcw size={17} />; if (id === 'recovery') return <ShoppingBag size={17} />; return <AlertTriangle size={17} />; }
 function priorityTone(severity) { if (severity === 'complete') return 'bg-emerald-50 text-emerald-700'; if (severity === 'urgent') return 'bg-rose-50 text-rose-700'; if (severity === 'opportunity') return 'bg-blue-50 text-blue-700'; return 'bg-amber-50 text-amber-700'; }
 function priorityLink(item, routes) { if (item.id === 'fulfilment') return `${routes.orders}?attention=fulfilment`; if (item.id === 'returns') return routes.returns; if (item.id === 'inventory') return `${routes.inventory}?filter=attention`; return '#recovery'; }

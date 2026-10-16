@@ -8,6 +8,12 @@ jest.mock('../../context/CartContext', () => ({ useCart: () => ({ items: [], get
 jest.mock('../../context/WishlistContext', () => ({ useWishlist: () => ({ items: [], toggleWishlist: jest.fn() }) }));
 const product = { _id: 'abcdef0123456789abcdef01', name: 'Matching necklace', price: 900, stock: 10, sizes: [], sizingMode: 'free-size', images: [] };
 beforeEach(() => { jest.clearAllMocks(); });
+test('electronics products show accessories wording', async () => {
+  api.get.mockResolvedValue({ enabled: true, products: [{ ...product, name: 'USB-C charger' }] });
+  render(<CompleteLook productId="phone" technologyCatalog navigate={jest.fn()} />);
+  expect(await screen.findByRole('heading', { name: 'Accessories and related products' })).toBeInTheDocument();
+  expect(screen.queryByText(/occasion and colours/)).not.toBeInTheDocument();
+});
 test('optional suggestions load independently, are store scoped and never auto-add to cart', async () => {
   api.get.mockResolvedValue({ enabled: true, products: [product] });
   const navigate = jest.fn(); render(<CompleteLook productId="source" storeSlug="nishaya" navigate={navigate} />);

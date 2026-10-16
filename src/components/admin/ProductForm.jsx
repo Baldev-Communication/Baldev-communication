@@ -4,10 +4,12 @@ import api from '../../services/api';
 import ImageUploader from './ImageUploader';
 import VideoUploader from './VideoUploader';
 import ProductSmartFill from './ProductSmartFill';
+import DynamicAttributeField from './ProductAttributeField';
 import ProductPreviewModal from './ProductPreviewModal';
 import BarcodeScanner from './BarcodeScanner';
 import CompleteLookPicker from './CompleteLookPicker';
 import { applySmartPatch } from '../../utils/productSmartFill';
+import { essentialTechnologySpecifications, isTechnologyCatalog } from '../../utils/catalogPresentation';
 import { normalizeImageEntries, normalizeImageUrl, normalizeVideoEntries } from '../../services/normalize';
 import {
   applyAssistantSuggestions,
@@ -127,6 +129,7 @@ export default function ProductForm({
   const [saving, setSaving] = useState(false);
   const [mediaActivity, setMediaActivity] = useState({ images: false, videos: false });
   const [viewMode, setViewMode] = useState('essential');
+  const [showAllSpecifications, setShowAllSpecifications] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [copyOpen, setCopyOpen] = useState(false);
   const [duplicateReview, setDuplicateReview] = useState({ loading: false, conflicts: [] });
@@ -354,6 +357,10 @@ export default function ProductForm({
   const update = (field, value) => {
     setForm((current) => {
       const next = { ...current, [field]: value };
+      const attributeKey = { brand: 'brand', countryOfOrigin: 'country_of_origin', warranty: 'warranty' }[field];
+      if (attributeKey && getActiveAttributeDefinitions(structure, categories, current).some(attribute => attribute.key === attributeKey)) {
+        next.attributeValues = { ...current.attributeValues, [attributeKey]: value };
+      }
       if ((field === 'sizes' || field === 'colors') && current.trackVariants) {
         next.variants = seedExistingStock(
           buildVariantMatrix(splitList(field === 'sizes' ? value : current.sizes), splitList(field === 'colors' ? value : current.colors), current.variants),
@@ -364,6 +371,11 @@ export default function ProductForm({
       return next;
     });
     clearErrors(setErrors, field, ...(field === 'sizes' ? ['sizeChart', 'variants'] : []), ...(field === 'colors' ? ['variants'] : []), ...(field === 'originalPrice' ? ['price'] : []));
+  };
+  const updateAttribute = (key, value) => {
+    const field = { brand: 'brand', country_of_origin: 'countryOfOrigin', warranty: 'warranty' }[key];
+    setForm(current => ({ ...current, ...(field ? { [field]: value } : {}), attributeValues: { ...current.attributeValues, [key]: value } }));
+    clearErrors(setErrors, 'attributes');
   };
 
   const updateVariantStock = (index, stock) => {
@@ -602,6 +614,7 @@ export default function ProductForm({
   };
 
   const previewImage = (form.images || []).find((image) => image?.primary)?.url || form.images?.[0]?.url || '';
+  const technologyCatalog = isTechnologyCatalog(structure);
   const sizingProduct = productForSizing(form);
   const effectiveSizingMode = resolveSizingMode(sizingProduct);
   const inferredSizeProfile = inferSizeChartProfile(sizingProduct);
@@ -628,7 +641,7 @@ export default function ProductForm({
     { id: 'category', label: 'Category', done: Boolean(form.category) && requiredAttributesComplete, target: 'product-pricing', icon: Tag },
     { id: 'price', label: 'Pricing', done: pricingReady, target: 'product-pricing', icon: IndianRupee },
     { id: 'stock', label: 'Inventory', done: inventoryReady, target: 'product-pricing', icon: Hash },
-    { id: 'size', label: 'Sizing', done: sizeChartReady, target: 'product-media', icon: CircleCheck },
+    ...(!technologyCatalog ? [{ id: 'size', label: 'Sizing', done: sizeChartReady, target: 'product-media', icon: CircleCheck }] : []),
     { id: 'details', label: 'Details', done: String(form.description || '').trim().length >= 20, target: 'product-basics', icon: FileText },
   ];
   const readyCount = checklist.filter((item) => item.done).length;
@@ -694,17 +707,17 @@ export default function ProductForm({
       <ProductSmartFill key={`${apiPrefix}-${productId || 'new'}-${smartFillReset}`} form={form} categories={categories} structure={structure} apiPrefix={apiPrefix}
         disabled={saving || mediaActivity.images || mediaActivity.videos || !draftReady || !!loadError || !structure}
         onApply={(patch, undo) => { setForm(current => applySmartPatch(current, patch, undo)); setErrors({}); }} />
-      {structure?.attributes?.length > 0 && <Section id="product-specifications" title={`${structure.name || 'Product'} specifications`} note="These fields, validation and customer-facing sections come from the active industry and category definition.">
+      {activeAttributeDefinitions.length > 0 && <Section id="product-specifications" title="Product specifications" note={technologyCatalog ? 'Choose a category to see its device or accessory specifications.' : 'Specifications for the selected category.'}>
         {errors.attributes && <p role="alert" data-error-field="attributes" tabIndex="-1" className="admin-form-hint lg:col-span-2">{errors.attributes}</p>}
-        {activeAttributeDefinitions.filter((attribute) => viewMode === 'advanced' || attribute.required).map((attribute) => <DynamicAttributeField key={attribute.key} attribute={attribute} value={form.attributeValues?.[attribute.key] ?? attribute.defaultValue ?? ''} onChange={(value) => { setForm((current) => ({ ...current, attributeValues: { ...current.attributeValues, [attribute.key]: value } })); clearErrors(setErrors, 'attributes'); }} />)}
-        {viewMode === 'essential' && activeAttributeDefinitions.some((attribute) => !attribute.required) && <button type="button" className="admin-btn-ghost lg:col-span-2 w-fit" onClick={() => setViewMode('advanced')}>Show optional specifications</button>}
+        {activeAttributeDefinitions.filter((attribute) => viewMode === 'advanced' || showAllSpecifications || attribute.required || String(form.attributeValues?.[attribute.key] ?? '').trim() || (technologyCatalog && essentialTechnologySpecifications.has(attribute.key))).map((attribute) => <DynamicAttributeField key={attribute.key} attribute={attribute} value={form.attributeValues?.[attribute.key] ?? attribute.defaultValue ?? ''} onChange={value => updateAttribute(attribute.key, value)} />)}
+        {viewMode === 'essential' && activeAttributeDefinitions.some((attribute) => !attribute.required) && <button type="button" className="admin-btn-ghost lg:col-span-2 w-fit" aria-expanded={showAllSpecifications} onClick={() => setShowAllSpecifications(value => !value)}>{showAllSpecifications ? 'Show fewer specifications' : 'Show all specifications'}</button>}
       </Section>}
       <Section id="product-basics" step="01" title="Basic Information" note="Name, SKU and the story customers will read.">
-        <Input field="name" label="Product name" value={form.name} onChange={(value) => update('name', value)} error={errors.name} placeholder="Royal Zari Silk Saree" required />
+        <Input field="name" label="Product name" value={form.name} onChange={(value) => update('name', value)} error={errors.name} placeholder={technologyCatalog ? 'Apple iPhone 15 128 GB or Samsung 25W USB-C Charger' : 'Enter the product name'} required />
         {viewMode === 'advanced' && <Input label="Slug" value={form.slug} onChange={(value) => update('slug', value)} placeholder="leave blank for auto slug" />}
         <Input field="sku" label="SKU" value={form.sku} onChange={(value) => update('sku', value)} error={errors.sku} placeholder="SC-0101" />
-        {viewMode === 'advanced' && <Input label="Brand" value={form.brand} onChange={(value) => update('brand', value)} />}
-        <Input label="Short Description" value={form.shortDescription} onChange={(value) => update('shortDescription', value)} placeholder="Premium festive wear" />
+        {viewMode === 'advanced' && !activeAttributeDefinitions.some(attribute => attribute.key === 'brand') && <Input label="Brand" value={form.brand} onChange={(value) => update('brand', value)} />}
+        <Input label="Short Description" value={form.shortDescription} onChange={(value) => update('shortDescription', value)} placeholder={technologyCatalog ? 'Key features, specifications and compatibility' : 'A short product summary'} />
         <label className="admin-field lg:col-span-2">
           <span>Full Description</span>
           <textarea
@@ -713,7 +726,7 @@ export default function ProductForm({
             data-error-field="description"
             aria-invalid={Boolean(errors.description)}
             className={`admin-field__control${errors.description ? ' is-error' : ''}`}
-            placeholder="Write fabric, fit, finish and occasion details"
+            placeholder={technologyCatalog ? 'Describe features, compatibility, condition and included accessories' : 'Describe the product and its key features'}
           />
           {errors.description && <span className="admin-field__error">{errors.description}</span>}
         </label>
@@ -760,14 +773,14 @@ export default function ProductForm({
             {availableSubcategories.map((item) => <option key={item} value={item} />)}
           </datalist>
         </label>}
-        <Input label="Occasions (comma-separated)" value={form.occasion} onChange={(value) => update('occasion', value)} placeholder="Wedding, Party, Daily wear" />
+        {!technologyCatalog && <><Input label="Occasions (comma-separated)" value={form.occasion} onChange={(value) => update('occasion', value)} placeholder="Wedding, Party, Daily wear" />
         <small className="text-slate-500">Use consistent occasion names. Homepage shortcuts use this store’s published products.</small>
-        {viewMode === 'advanced' && <Input label="Fabric" value={form.fabric} onChange={(value) => update('fabric', value)} placeholder="Silk" />}
+        {viewMode === 'advanced' && <Input label="Fabric" value={form.fabric} onChange={(value) => update('fabric', value)} placeholder="Silk" />}</>}
         <Input field="originalPrice" label="Original price" type="number" min="0.01" step="0.01" value={form.originalPrice} onChange={(value) => update('originalPrice', value)} error={errors.originalPrice} placeholder="2499" />
         <Input field="price" label="Selling price" type="number" min="0.01" step="0.01" value={form.price} onChange={(value) => update('price', value)} error={errors.price} placeholder="1299" />
         {viewMode === 'advanced' && <Input field="costPrice" label="Cost price" type="number" min="0" step="0.01" value={form.costPrice || 0} onChange={(value) => update('costPrice', value)} error={errors.costPrice} placeholder="700" />}
         {viewMode === 'advanced' && <Input field="gstRate" label="GST rate (%)" type="number" min="0" max="100" step="0.01" value={form.gstRate || 0} onChange={(value) => update('gstRate', value)} error={errors.gstRate} placeholder="5" />}
-        {viewMode === 'advanced' && <Input label="HSN code" value={form.hsnCode || ''} onChange={(value) => update('hsnCode', value)} placeholder="6204" />}
+        {viewMode === 'advanced' && <Input label="HSN code" value={form.hsnCode || ''} onChange={(value) => update('hsnCode', value)} placeholder="Enter the verified product HSN code" />}
         {viewMode === 'advanced' && <div className="admin-field"><Input field="barcode" label="Barcode / GTIN" value={form.barcode || ''} onChange={(value) => update('barcode', value)} error={errors.barcode} placeholder="Scan or enter barcode" /><BarcodeScanner disabled={saving} onDetected={handleBarcode} /></div>}
         <Input field="stock" label={form.trackVariants ? 'Total stock (calculated from variants)' : 'Stock quantity'} type="number" min="0" step="1" value={form.stock} onChange={(value) => update('stock', value)} error={errors.stock} placeholder="20" disabled={form.trackVariants} />
         {viewMode === 'advanced' && <Input field="lowStockAlert" label="Low stock alert" type="number" min="0" step="1" value={form.lowStockAlert} onChange={(value) => update('lowStockAlert', value)} error={errors.lowStockAlert} placeholder="5" />}
@@ -823,7 +836,7 @@ export default function ProductForm({
         ) : null}
       </Section>
 
-      <Section id="product-media" step="03" title="Product Images, Sizes and Colors" note="Photos first, then the options customers pick.">
+      <Section id="product-media" step="03" title={technologyCatalog ? 'Product photos, videos and colours' : 'Product Images, Sizes and Colors'} note="Photos first, then the options customers pick.">
         <div className="lg:col-span-2" data-error-field="images" tabIndex="-1">
           <div className="admin-form-hint mb-3">
             <h3>Product images</h3>
@@ -893,15 +906,15 @@ export default function ProductForm({
         </>}
         {effectiveSizingMode === 'sized' ? (
           <Input field="sizes" label="Selectable sizes" value={form.sizes} onChange={(value) => update('sizes', value)} error={errors.sizes} placeholder="XS, S, M, L, XL, XXL" />
-        ) : (
+        ) : !technologyCatalog ? (
           <div className="admin-form-hint lg:col-span-2">
             <h3>No size chart required</h3>
             <p>This product does not require garment sizing. Customers can add it without choosing S, M, L or XL.</p>
           </div>
-        )}
-        <Input label="Colors" value={form.colors} onChange={(value) => update('colors', value)} placeholder="Pink, Maroon, Gold" />
-        {viewMode === 'advanced' && <Input label="Tags" value={form.tags} onChange={(value) => update('tags', value)} placeholder="festive, silk, wedding" />}
-        {viewMode === 'advanced' && <Input label="Care Instructions" value={form.careInstructions} onChange={(value) => update('careInstructions', value)} placeholder="Dry clean preferred" />}
+        ) : null}
+        <Input label="Colors" value={form.colors} onChange={(value) => update('colors', value)} placeholder={technologyCatalog ? 'Black, White, Blue' : 'Available product colours'} />
+        {viewMode === 'advanced' && <Input label="Tags" value={form.tags} onChange={(value) => update('tags', value)} placeholder={technologyCatalog ? 'USB-C, fast charging, wireless' : 'Product search tags'} />}
+        {viewMode === 'advanced' && <Input label={technologyCatalog ? 'Use and care instructions' : 'Care Instructions'} value={form.careInstructions} onChange={(value) => update('careInstructions', value)} placeholder={technologyCatalog ? 'Safe use, cleaning and charging instructions' : 'Product care instructions'} />}
 
         {effectiveSizingMode === 'sized' ? (
           <div className="lg:col-span-2 overflow-hidden rounded-2xl border border-theme-border bg-white">
@@ -964,7 +977,7 @@ export default function ProductForm({
         ) : null}
       </Section>
 
-      <Section id="complete-look" title="Complete the look" note="Optional complementary products on the product-detail page; no automatic bundles or cart changes."><CompleteLookPicker apiPrefix={apiPrefix} productId={productId} value={form.completeLookProductIds || []} onChange={value => update('completeLookProductIds', value)} disabled={saving} /></Section>
+      <Section id="complete-look" title={technologyCatalog ? 'Compatible accessories and related products' : 'Complete the look'} note="Choose related products to show on the product page."><CompleteLookPicker apiPrefix={apiPrefix} productId={productId} technologyCatalog={technologyCatalog} value={form.completeLookProductIds || []} onChange={value => update('completeLookProductIds', value)} disabled={saving} /></Section>
       {viewMode === 'advanced' && <Section id="product-fulfilment" step="04" title="Shipping, Supplier and Schedule" note="Operational details used for courier planning, restocking and controlled publishing.">
         <Input field="packageDimensions" label="Package length (cm)" type="number" min="0" step="0.1" value={form.packageDimensions?.lengthCm || 0} onChange={(value) => { updateNested(setForm, 'packageDimensions', 'lengthCm', value); clearErrors(setErrors, 'packageDimensions'); }} error={errors.packageDimensions} />
         <Input label="Package width (cm)" type="number" min="0" step="0.1" value={form.packageDimensions?.widthCm || 0} onChange={(value) => { updateNested(setForm, 'packageDimensions', 'widthCm', value); clearErrors(setErrors, 'packageDimensions'); }} />
@@ -1103,7 +1116,7 @@ export default function ProductForm({
       </Section></details> : null}
 
       {viewMode === 'advanced' && <Section step="06" title="Highlights, Policy and SEO" note="Storefront extras and catalog flags.">
-        <Input label="Highlights" value={form.highlights.join(', ')} onChange={(value) => update('highlights', splitList(value))} placeholder="Premium fabric, Easy wash care" />
+        <Input label="Highlights" value={form.highlights.join(', ')} onChange={(value) => update('highlights', splitList(value))} placeholder={technologyCatalog ? 'Key specifications, compatibility and included features' : 'Key product features'} />
         <Input label="Return Policy" value={form.returnPolicy} onChange={(value) => update('returnPolicy', value)} placeholder="7 days return/exchange" />
         <div className="admin-form-hint lg:col-span-2">
           <div><h3>Returns and exchanges</h3><p>These rules are copied into each order when it is placed, so later policy edits do not change an existing customer purchase.</p></div>
@@ -1351,69 +1364,6 @@ function Input({ field, label, value, onChange, placeholder, type = 'text', requ
         placeholder={placeholder}
       />
       {error && <span className="admin-field__error">{error}</span>}
-    </label>
-  );
-}
-
-function DynamicAttributeField({ attribute, value, onChange }) {
-  const label = (
-    <span>
-      {attribute.label}{attribute.unit ? ` (${attribute.unit})` : ''}{attribute.required ? <em>*</em> : null}
-    </span>
-  );
-  const common = {
-    value: value ?? '',
-    required: Boolean(attribute.required),
-    onChange: (event) => onChange(event.target.value),
-    'data-required-attribute': attribute.required && !String(value ?? '').trim() ? attribute.key : undefined,
-    className: 'admin-field__control',
-  };
-
-  if (attribute.type === 'boolean') {
-    return <label className="admin-field">{label}<select {...common}><option value="">Choose</option><option value="Yes">Yes</option><option value="No">No</option></select></label>;
-  }
-  if (attribute.type === 'dropdown') {
-    return <label className="admin-field">{label}<select {...common}><option value="">Choose {attribute.label.toLowerCase()}</option>{(attribute.options || []).map((option) => <option key={option} value={option}>{option}</option>)}</select></label>;
-  }
-  if (attribute.type === 'multi_select') {
-    const selected = new Set(splitList(value));
-    if (attribute.options?.length) {
-      return (
-        <fieldset className="admin-field" data-required-attribute={attribute.required && !String(value ?? '').trim() ? attribute.key : undefined} tabIndex={attribute.required ? -1 : undefined}>
-          <legend>{label}</legend>
-          <div className="flex flex-wrap gap-2 rounded-xl border border-theme-border bg-white p-3">
-            {attribute.options.map((option) => (
-              <label key={option} className={`admin-flag ${selected.has(option) ? 'is-on' : ''}`}>
-                <input type="checkbox" checked={selected.has(option)} onChange={() => {
-                  const next = new Set(selected);
-                  if (next.has(option)) next.delete(option); else next.add(option);
-                  onChange(Array.from(next).join(', '));
-                }} />
-                {option}
-              </label>
-            ))}
-          </div>
-        </fieldset>
-      );
-    }
-    return <label className="admin-field">{label}<input {...common} placeholder="Enter comma-separated values" /></label>;
-  }
-  if (attribute.type === 'textarea') {
-    return <label className="admin-field lg:col-span-2">{label}<textarea {...common} rows={4} /></label>;
-  }
-  const numeric = ['number', 'measurement', 'range'].includes(attribute.type);
-  return (
-    <label className="admin-field">
-      {label}
-      <input
-        {...common}
-        type={attribute.type === 'date' ? 'date' : attribute.type === 'color' ? 'text' : numeric ? 'number' : 'text'}
-        min={numeric ? attribute.validation?.min : undefined}
-        max={numeric ? attribute.validation?.max : undefined}
-        minLength={!numeric ? attribute.validation?.minLength : undefined}
-        maxLength={!numeric ? attribute.validation?.maxLength : undefined}
-        placeholder={attribute.type === 'color' ? 'Example: Midnight Blue or #14213d' : ''}
-      />
     </label>
   );
 }

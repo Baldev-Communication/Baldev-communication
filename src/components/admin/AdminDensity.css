@@ -1,0 +1,172 @@
+/* Keep operational pages compact without shrinking form controls or touch targets. */
+.admin-shell .admin-shell__content {
+  max-width: 1600px;
+  padding: 14px;
+}
+
+.admin-shell .admin-shell__content > .space-y-5 > :not([hidden]) ~ :not([hidden]) {
+  margin-top: 12px;
+}
+
+.admin-shell .admin-data-table__head { gap: 10px; padding: 10px 14px; }
+.admin-shell .admin-catalog-table th { padding: 10px 13px; }
+.admin-shell .admin-catalog-table td { padding: 11px 13px; }
+.admin-shell .order-task-grid {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+  overflow: visible;
+}
+.admin-shell .order-task-card {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  align-content: center;
+  min-height: 62px;
+  gap: 3px 8px;
+  padding: 10px 12px;
+}
+.admin-shell .order-task-card > span { min-width: 0; white-space: normal; line-height: 1.2; }
+.admin-shell .order-task-card > strong { font-size: 22px; }
+.admin-shell .order-task-card > small { grid-column: 1 / -1; }
+.admin-shell .order-workspace .admin-filter-bar { grid-template-columns: minmax(220px, 1fr) minmax(0, 1.35fr); gap: 10px; padding: 12px; }
+.admin-shell .order-workspace .admin-filter-bar__controls { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.admin-shell .order-workspace .admin-filter-bar__controls > * { width: 100%; min-width: 0; min-height: 44px; }
+.admin-shell .order-advanced-filters { width: fit-content; max-width: 100%; border: 0; background: transparent; box-shadow: none; overflow: visible; }
+.admin-shell .order-advanced-filters > summary { display: inline-flex; min-height: 40px; align-items: center; padding: 8px 13px; border: 1px solid var(--admin-border); border-radius: 11px; background: #fff; }
+.admin-shell .order-advanced-filters[open] { width: 100%; }
+.admin-shell .order-advanced-filters > div { margin-top: 8px; padding: 14px; border: 1px solid var(--admin-border); border-radius: 13px; background: #fff; }
+.admin-shell .order-workspace .admin-card.p-5.text-center { padding: 15px; }
+.admin-shell .category-summary { padding: 11px 13px; gap: 9px; }
+.admin-shell .category-summary > span { width: 36px; height: 36px; flex-basis: 36px; }
+.admin-shell .customer-workspace { gap: 12px; }
+.admin-shell .customer-hero { gap: 12px; padding: 16px 18px; border-radius: 18px; }
+.admin-shell .customer-hero h1 { margin: 0; color: #fff; font-size: 25px; }
+.admin-shell .customer-hero > div > p:last-child, .admin-shell .customer-eyebrow { display: none; }
+.admin-shell .customer-hero__actions { top: 16px; right: 18px; }
+.admin-shell .customer-metric { padding: 10px; }
+.admin-shell .customer-toolbar { padding: 10px; }
+.admin-shell .variant-family-page { gap: 12px; }
+.admin-shell .variant-family-metrics button { min-height: 68px; padding: 10px 13px; }
+
+.admin-shell .social-import { gap: 12px; }
+.admin-shell .social-import__start { padding: 18px; }
+.admin-shell .social-import__brand { padding: 11px; }
+.admin-shell .social-import__url-form { margin-top: 14px; }
+.admin-shell .social-import__workspace { gap: 14px; }
+.admin-shell .social-import__main, .admin-shell .social-import__review { gap: 12px; }
+.admin-shell .social-import__welcome { padding: 25px 18px; gap: 12px; }
+.admin-shell .social-import__gallery, .admin-shell .social-import__fields { padding: 16px; }
+.admin-shell .social-import__gallery > header, .admin-shell .social-import__fields > header { margin-bottom: 12px; }
+.admin-shell .social-import__history { padding: 14px; }
+.admin-shell .reel-import > .grid { gap: 12px; }
+.admin-shell .reel-import > .grid .admin-card { padding: 15px; }
+
+.admin-shell .social-studio { padding: 0 0 18px; }
+.admin-shell .social-heading { margin-bottom: 12px; }
+.admin-shell .social-heading h1 { margin: 0; font-size: 27px; }
+.admin-shell .social-eyebrow, .admin-shell .social-heading > div > p:last-child { display: none; }
+.admin-shell .social-overview { grid-template-columns: repeat(2, minmax(0, 1fr)); margin-bottom: 12px; }
+.admin-shell .social-overview > div { padding: 12px 16px; }
+.admin-shell .social-overview-note { display: none; }
+.admin-shell .social-tabs { gap: 14px; margin-bottom: 12px; }
+.admin-shell .social-tabs button { min-height: 44px; padding: 8px 4px; }
+
+.admin-shell .rental-workspace { padding: 0; gap: 12px; }
+.admin-shell .rental-hero { padding: 15px 18px; border-radius: 16px; }
+.admin-shell .rental-hero h1 { color: #fff; font-size: 24px; }
+.admin-shell .rental-hero p { display: none; }
+.admin-shell .rental-card { padding: 14px; }
+.admin-shell .rental-grid, .admin-shell .rental-studio-stack { gap: 12px; }
+.admin-shell .rental-metrics strong { font-size: 20px; margin-top: 2px; }
+.admin-shell .rental-table th, .admin-shell .rental-table td { padding: 9px 8px; }
+.admin-shell .rental-day { min-height: 112px; }
+
+.admin-shell .returns-workspace { gap: 12px; }
+.admin-shell .returns-row { min-height: 0; }
+.admin-shell .returns-summary button { padding: 11px; }
+.admin-shell .returns-list__head, .admin-shell .returns-row { padding: 10px 13px; }
+.admin-shell .returns-empty { min-height: 150px; }
+.admin-shell .inventory-workspace { gap: 12px; }
+.admin-shell .inventory-summary { gap: 8px; }
+.admin-shell .inventory-summary > button { gap: 8px; padding: 11px; }
+.admin-shell .inventory-summary > button > span { flex-basis: 30px; height: 30px; }
+.admin-shell .inventory-summary strong { font-size: 21px; }
+.admin-shell .inventory-tabs button { min-height: 44px; padding: 8px 12px; }
+.admin-shell .inventory-filters { padding: 10px; }
+
+.admin-shell .report-center, .admin-shell .report-section { gap: 12px; }
+.admin-shell .report-toolbar { gap: 10px; padding: 12px; }
+.admin-shell .report-kpis { gap: 9px; }
+.admin-shell .report-kpi { min-height: 100px; gap: 4px; padding: 12px; }
+.admin-shell .report-kpi > strong { font-size: 22px; }
+.admin-shell .report-grid-2 { gap: 12px; }
+.admin-shell .report-panel { padding: 15px; }
+.admin-shell .traffic-report { gap: 12px; }
+.admin-shell .traffic-report__health, .admin-shell .traffic-report__kpis article, .admin-shell .traffic-report__panel { padding: 13px; }
+.admin-shell .traffic-report__kpis { gap: 9px; }
+.admin-shell .traffic-report__kpis strong { font-size: 23px; margin: 3px 0; }
+
+.admin-shell .campaign-workspace { padding-bottom: 16px; }
+.admin-shell .campaign-hero { padding: 16px 18px; }
+.admin-shell .campaign-hero h1 { margin-top: 0; font-size: 23px; }
+.admin-shell .campaign-hero p { display: none; }
+.admin-shell .campaign-workspace [class*="min-h-[480px]"] { min-height: 0; }
+.admin-shell .business-center { padding-bottom: 16px; }
+.admin-shell .business-center > header > div:first-child { padding: 16px 18px; }
+.admin-shell .business-center > header h1 { color: #fff; font-size: 25px; margin-top: 4px; }
+.admin-shell .business-center > header > div:last-child { padding: 8px 18px; }
+.admin-shell .business-center > article.p-5, .admin-shell .business-center > div > article.p-5 { padding: 15px; }
+.admin-shell .business-center > article .mt-5, .admin-shell .business-center > div > article .mt-5 { margin-top: 12px; }
+
+.admin-shell .store-settings__overview { padding: 11px 15px; margin: 12px 0; }
+.admin-shell .store-settings__brand img { width: 42px; height: 42px; }
+.admin-shell .store-settings__layout { gap: 14px; }
+.admin-shell .store-settings__sidebar nav { gap: 2px; margin-top: 8px; }
+.admin-shell .store-settings__sidebar nav button { min-height: 44px; padding: 8px 10px; }
+.admin-shell .store-settings__panel-heading { padding: 14px 18px; }
+.admin-shell .store-settings__panel-heading h2 { margin: 3px 0; font-size: 19px; }
+.admin-shell .store-settings__fields { gap: 15px; padding: 18px; }
+.admin-shell .store-settings__field { gap: 5px; }
+.admin-shell .store-settings__toggle { padding: 10px 0; }
+.admin-shell .store-settings__savebar { margin-top: 12px; padding: 10px 14px; }
+
+.admin-shell .audit-explorer { gap: 12px; }
+.admin-shell .audit-filters, .admin-shell .audit-detail, .admin-shell .audit-pagination, .admin-shell .audit-error { padding: 14px; }
+.admin-shell .audit-filters { gap: 10px; }
+.admin-shell .content-studio { padding-bottom: 16px; }
+.admin-shell .content-grid { gap: 12px; }
+.admin-shell .content-overview, .admin-shell .content-managed { padding: 14px; }
+.admin-shell .content-score { min-height: 56px; }
+.admin-shell .website-designer > p:first-of-type { padding: 10px; }
+.admin-shell .website-designer > .admin-card { padding: 12px; }
+.admin-shell .system-status > .admin-card { padding: 15px; }
+.admin-shell .system-status > .grid { gap: 12px; }
+
+@media (min-width: 1024px) {
+  .admin-shell .admin-shell__content { padding: 18px 22px; }
+}
+
+@media (max-width: 767px) {
+  .admin-shell .admin-shell__content { padding: 10px; }
+  .admin-shell .admin-page-header__inline-note { flex-basis: 100%; margin-left: 0; white-space: normal; }
+  .admin-shell .admin-page-header__copy:has(.admin-page-header__inline-note) { flex-wrap: wrap; }
+  .admin-shell .admin-catalog-table td { padding: 10px 12px; }
+  .admin-shell .order-task-grid { display: grid; grid-template-columns: repeat(10, 144px); overflow-x: auto; margin-inline: 0; }
+  .admin-shell .order-task-card { min-height: 62px; padding: 9px 10px; }
+  .admin-shell .order-workspace .admin-filter-bar { grid-template-columns: minmax(0, 1fr); }
+  .admin-shell .order-workspace .admin-filter-bar__controls { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .admin-shell .order-workspace .admin-filter-bar__controls > :last-child { grid-column: 1 / -1; }
+  .admin-shell .social-import__workspace { grid-template-columns: minmax(0, 1fr); }
+  .admin-shell .social-overview > div { padding: 10px; }
+  .admin-shell .social-overview { grid-template-columns: minmax(0, 1fr); }
+  .admin-shell .customer-hero__actions { position: static; max-width: none; justify-content: flex-start; }
+  .admin-shell .rental-workspace { padding: 0; }
+  .admin-shell .rental-card { padding: 12px; }
+  .admin-shell .inventory-summary > button { padding: 10px; }
+  .admin-shell .report-kpi { min-height: 100px; }
+  .admin-shell .store-settings__fields { gap: 16px; padding: 14px; }
+}
+
+@media (min-width: 768px) and (max-width: 1280px) {
+  .admin-shell .order-task-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+  .admin-shell .order-workspace .admin-filter-bar { grid-template-columns: minmax(0, 1fr); }
+}

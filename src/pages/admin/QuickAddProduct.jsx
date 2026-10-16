@@ -3,7 +3,10 @@ import { Check, ChevronDown, Plus } from 'lucide-react';
 import api from '../../services/api';
 import ImageUploader from '../../components/admin/ImageUploader';
 import ProductSmartFill from '../../components/admin/ProductSmartFill';
-import { applySmartPatch } from '../../utils/productSmartFill';
+import ProductAttributeField from '../../components/admin/ProductAttributeField';
+import { isTechnologyCatalog } from '../../utils/catalogPresentation';
+import { draftAttributeDefinitions, firstInvalidDraftAttribute } from '../../utils/draftAttributes';
+import { applySmartPatch, automaticSpecificationPatch, smartInputSignature, smartProvider, smartRequest, snapshotForm, suggestionRows } from '../../utils/productSmartFill';
 import PageHeader from '../../components/admin/PageHeader';
 import ImportSizeFields from '../../components/admin/ImportSizeFields';
 import { asCatalogList, fetchSubcategories } from '../../utils/catalogOptions';
@@ -29,6 +32,7 @@ export default function QuickAddProduct() {
   const [analyzing, setAnalyzing] = useState(false);
   const [message, setMessage] = useState('');
   const [visionNote, setVisionNote] = useState('');
+  const [visionSources, setVisionSources] = useState([]);
   const [visionEnabled, setVisionEnabled] = useState(null);
   const [created, setCreated] = useState(null);
   const [nameTouched, setNameTouched] = useState(false);
@@ -38,6 +42,8 @@ export default function QuickAddProduct() {
   const [structure, setStructure] = useState(null);
   const [setupError, setSetupError] = useState('');
   const [setupLoading, setSetupLoading] = useState(true);
+  const technologyCatalog = isTechnologyCatalog(structure);
+  const attributes = draftAttributeDefinitions(structure, categories, form);
 
   const nameTouchedRef = useRef(false);
   const copyTouchedRef = useRef(false);
@@ -46,6 +52,9 @@ export default function QuickAddProduct() {
   const visionEnabledRef = useRef(null);
   const analyzedUrlRef = useRef('');
   const analyzeTokenRef = useRef(0);
+  const currentForm = useRef(form); currentForm.current = form;
+  const visionStatusRequest = useRef(null);
+  const activeAnalysis = useRef(null);
 
   useEffect(() => { nameTouchedRef.current = nameTouched; }, [nameTouched]);
   useEffect(() => { copyTouchedRef.current = copyTouched; }, [copyTouched]);
@@ -67,22 +76,27 @@ export default function QuickAddProduct() {
   useEffect(() => { loadSetup(); }, [loadSetup]);
 
   useEffect(() => {
+    if (!structure) return undefined;
     let alive = true;
-    api.get('/admin/products/quick-analyze/status')
+    visionStatusRequest.current = api.get(technologyCatalog ? '/admin/products/smart-fill/status' : '/admin/products/quick-analyze/status', { silent: true, cache: 'no-store' })
       .then((status) => {
-        if (!alive) return;
+        if (!alive) return status;
+        visionEnabledRef.current = Boolean(status?.enabled);
         setVisionEnabled(Boolean(status?.enabled));
         if (!status?.enabled) {
-          setVisionNote(status?.reason || 'Photo AI is off. Add GEMINI_API_KEY in backend/.env and restart.');
+          setVisionNote(status?.reason || 'Photo AI is not configured on the backend. Enter product details manually.');
         }
+        return status;
       })
       .catch(() => {
-        if (!alive) return;
+        if (!alive) return null;
+        visionEnabledRef.current = false;
         setVisionEnabled(false);
         setVisionNote('Could not check photo AI status. Restart the backend, then refresh this page.');
+        return null;
       });
-    return () => { alive = false; analyzeTokenRef.current += 1; };
-  }, []);
+    return () => { alive = false; analyzeTokenRef.current += 1; activeAnalysis.current?.abort(); };
+  }, [structure, technologyCatalog]);
 
   useEffect(() => {
     let alive = true;
@@ -134,11 +148,41 @@ export default function QuickAddProduct() {
 
   const analyzePhoto = async (imageUrl, images) => {
     const token = ++analyzeTokenRef.current;
+    activeAnalysis.current?.abort();
+    const controller = new AbortController(); activeAnalysis.current = controller;
+    const baseline = snapshotForm(currentForm.current);
     setAnalyzing(true);
+    setVisionSources([]);
     setVisionNote(visionEnabledRef.current === false
-      ? 'Photo AI is off — using filename only until GEMINI_API_KEY is set.'
+      ? 'Photo AI is not configured. Enter the exact product model.'
       : 'Looking at the product…');
     try {
+      const status = await visionStatusRequest.current;
+      if (controller.signal.aborted || token !== analyzeTokenRef.current) return;
+      if (!status?.enabled) {
+        setVisionNote('Photo AI is not configured on the backend. Enter the exact product model and specifications.');
+        applyFilenameFallback(images); return;
+      }
+      if (technologyCatalog) {
+        let preference = ''; try { preference = localStorage.getItem('baldev_product_ai_provider') || ''; } catch { /* Optional preference. */ }
+        const result = await api.post('/admin/products/smart-fill', smartRequest(baseline, '', images.map(item => typeof item === 'string' ? item : item.url).filter(Boolean).slice(0, 4), true, smartProvider(status, preference)), { silent: true, signal: controller.signal });
+        if (controller.signal.aborted || token !== analyzeTokenRef.current) return;
+        const unchanged = smartInputSignature(currentForm.current, {}) === smartInputSignature(baseline, {});
+        setForm(current => {
+          if (smartInputSignature(current, {}) !== smartInputSignature(baseline, {})) return current;
+          const generated = applyVisionSuggestion(current, { ...result.suggestion, categoryId: result.suggestion?.category }, {
+            name: nameTouchedRef.current, copy: copyTouchedRef.current, category: categoryTouchedRef.current,
+          }, categoriesRef.current, draftAttributeDefinitions(structure, categoriesRef.current, { ...current, category: current.category || result.suggestion?.category }));
+          if (!unchanged || result.specificationLookup?.status === 'failed') return generated;
+          const rows = suggestionRows(result, generated, { categories: categoriesRef.current, structure, seo: false });
+          return applySmartPatch(generated, automaticSpecificationPatch(rows, generated));
+        });
+        setVisionSources(result.webSources || []); setMoreOpen(true);
+        setVisionNote(result.specificationLookup?.status === 'completed'
+          ? unchanged ? 'Internet specifications filled where verified. Review the fields, then add price and stock.' : 'Product details changed during analysis. Run Smart Fill again to fill specifications for the updated model.'
+          : `Specifications were not fetched: ${result.specificationLookup?.message || result.warnings?.[0] || 'Enter an exact model and run Smart Fill.'}`);
+        return;
+      }
       const result = await api.post('/admin/products/quick-analyze', {
         imageUrl,
         categories: categoriesRef.current.map((item) => ({ _id: item._id, name: item.name })),
@@ -148,7 +192,7 @@ export default function QuickAddProduct() {
 
       if (!result?.enabled) {
         setVisionEnabled(false);
-        setVisionNote(result?.reason || 'Photo AI is off. Add GEMINI_API_KEY in backend/.env and restart the server.');
+        setVisionNote(result?.reason || 'Photo AI is not configured. Enter product details manually.');
         applyFilenameFallback(images);
         return;
       }
@@ -165,7 +209,7 @@ export default function QuickAddProduct() {
         name: nameTouchedRef.current,
         copy: copyTouchedRef.current,
         category: categoryTouchedRef.current,
-      }, categoriesRef.current, structure?.attributes || []));
+      }, categoriesRef.current, draftAttributeDefinitions(structure, categoriesRef.current, { ...current, category: current.category || result.suggestion.category })));
       if (extras) setMoreOpen(true);
       setVisionNote('Identified from the photo. Check the fields, then add price and stock.');
     } catch (error) {
@@ -174,6 +218,7 @@ export default function QuickAddProduct() {
       applyFilenameFallback(images);
     } finally {
       if (token === analyzeTokenRef.current) setAnalyzing(false);
+      if (activeAnalysis.current === controller) activeAnalysis.current = null;
     }
   };
 
@@ -184,10 +229,11 @@ export default function QuickAddProduct() {
     const firstUrl = images[0]?.url || '';
     if (!firstUrl) {
       analyzeTokenRef.current += 1;
+      activeAnalysis.current?.abort(); setVisionSources([]);
       analyzedUrlRef.current = '';
       setAnalyzing(false);
       if (visionEnabledRef.current === false) {
-        setVisionNote('Photo AI is off. Add GEMINI_API_KEY in backend/.env and restart the server.');
+        setVisionNote('Photo AI is not configured. Enter product details manually.');
       } else {
         setVisionNote('');
       }
@@ -199,7 +245,7 @@ export default function QuickAddProduct() {
     // Do not fill from the phone filename first — wait for vision when AI is on.
     if (visionEnabledRef.current === false) {
       applyFilenameFallback(images);
-      setVisionNote('Photo AI is off — name is from the file only. Add GEMINI_API_KEY to identify the garment from the photo.');
+      setVisionNote('Photo AI is unavailable. The suggested name uses the file name; enter the exact product model.');
       return;
     }
     analyzePhoto(firstUrl, images);
@@ -213,9 +259,8 @@ export default function QuickAddProduct() {
     if (!getSizeChartValidation(sizing).valid) nextErrors.sizing = 'Complete the available sizes and actual measurements below.';
     if (!Number.isSafeInteger(Number(form.stock)) || Number(form.stock) < 0) nextErrors.stock = 'Enter a whole-number stock quantity.';
     if (!Number.isFinite(Number(form.price))) nextErrors.price = 'Enter a valid selling price.';
-    for (const attribute of structure.attributes || []) {
-      if (attribute.required && !String(form.attributeValues?.[attribute.key] ?? '').trim()) nextErrors[attribute.key] = `${attribute.label} is required.`;
-    }
+    const invalidAttribute = firstInvalidDraftAttribute(attributes, form.attributeValues);
+    if (invalidAttribute) nextErrors[invalidAttribute.key] = invalidAttribute.message;
     setErrors(nextErrors);
     if (Object.keys(nextErrors).length) return;
 
@@ -253,9 +298,10 @@ export default function QuickAddProduct() {
     setForm(emptyQuickAddForm());
     setErrors({});
     setCreated(null);
+    activeAnalysis.current?.abort(); setVisionSources([]);
     setMessage('');
     setVisionNote(visionEnabledRef.current === false
-      ? 'Photo AI is off. Add GEMINI_API_KEY in backend/.env and restart the server.'
+      ? 'Photo AI is not configured. Enter product details manually.'
       : '');
     setAnalyzing(false);
     setNameTouched(false);
@@ -293,20 +339,15 @@ export default function QuickAddProduct() {
 
   return (
     <section className="space-y-5">
-      <PageHeader title="Quick Add Product" note="Upload a photo. The system looks at the garment and fills name, category, colors and details. You add price and stock.">
+      <PageHeader title="Quick Add Product" note="Upload a product photo, review the suggested details, then add price and stock.">
         <a href="/admin/social-import" className="admin-btn-ghost">Import Instagram / Facebook link</a>
         <a href="/admin/products/add" className="admin-btn-ghost">Open Advanced Add Product</a>
       </PageHeader>
 
       {visionEnabled === false && (
         <div className="admin-quick-add__banner" role="status">
-          <strong>Photo AI is off</strong>
-          <p>
-            Quick Add can only use the file name until a free Gemini key is on the server.
-            Add <code>GEMINI_API_KEY</code> in <code>backend/.env</code> from{' '}
-            <a href="https://aistudio.google.com/apikey" target="_blank" rel="noreferrer">Google AI Studio</a>,
-            then restart the backend.
-          </p>
+          <strong>Photo AI is unavailable</strong>
+          <p>Enter the exact model and review the product details manually. Smart Fill can fetch specifications when AI is available.</p>
         </div>
       )}
 
@@ -316,8 +357,8 @@ export default function QuickAddProduct() {
           <h2>Photos</h2>
           <p className="admin-form-card__note">
             {visionEnabled
-              ? 'First photo is studied by AI to identify the garment. Price and stock stay manual.'
-              : 'First photo becomes the main image. Turn on photo AI to identify the garment automatically.'}
+              ? 'AI reads the first photo to identify the product and visible model details.'
+              : 'The first photo becomes the main image. Enter the product model or use Smart Fill.'}
           </p>
           <div className="mt-4">
             <ImageUploader
@@ -332,16 +373,17 @@ export default function QuickAddProduct() {
               targetSizeMb={0.7}
               showPrimaryControl={false}
               value={form.images}
-              disabled={saving}
+              disabled={saving || setupLoading || !structure}
               onBusyChange={setMediaBusy}
               onChange={onImagesChange}
             />
             {analyzing && <p className="admin-quick-add__status is-busy">Looking at the product…</p>}
             {!analyzing && visionNote && <p className="admin-quick-add__status">{visionNote}</p>}
+            {!analyzing && !!visionSources.length && <div className="product-smart-fill__sources" aria-label="AI specification sources">{visionSources.map(source => <a key={source.url} href={source.url} target="_blank" rel="noopener noreferrer">{source.title}</a>)}</div>}
             {errors.images && <p className="admin-field__error mt-2">{errors.images}</p>}
           </div>
 
-          {structure?.attributes?.map((attribute) => <label key={attribute.key} className="admin-field mt-4"><span>{attribute.label}{attribute.unit ? ` (${attribute.unit})` : ''}{attribute.required && <em>*</em>}</span><input className="admin-field__control" maxLength={500} value={form.attributeValues?.[attribute.key] ?? ''} onChange={(event) => { if (attribute.key === 'brand') update('brand', event.target.value); else if (attribute.key === 'country_of_origin') update('countryOfOrigin', event.target.value); else update('attributeValues', { ...form.attributeValues, [attribute.key]: event.target.value }); setErrors((current) => ({ ...current, [attribute.key]: undefined })); }} />{errors[attribute.key] && <span className="admin-field__error">{errors[attribute.key]}</span>}</label>)}
+          {attributes.map(attribute => <ProductAttributeField key={attribute.key} attribute={attribute} value={form.attributeValues?.[attribute.key] ?? ''} error={errors[attribute.key]} onChange={value => { if (attribute.key === 'brand') update('brand', value); else if (attribute.key === 'country_of_origin') update('countryOfOrigin', value); else update('attributeValues', { ...form.attributeValues, [attribute.key]: value }); setErrors(current => ({ ...current, [attribute.key]: undefined })); }} />)}
           {structure && <div className="mt-4"><ImportSizeFields form={form} onUpdate={update} categories={categories} structure={structure} />{errors.sizing && <p role="alert" className="admin-field__error">{errors.sizing}</p>}</div>}
         </div>
 
@@ -484,21 +526,21 @@ export default function QuickAddProduct() {
               {['lengthCm', 'widthCm', 'heightCm'].map((key) => <label key={key} className="admin-field"><span>Package {key.replace('Cm', '')} (cm)</span><input type="number" min="0" step="0.1" value={form.packageDimensions?.[key] ?? ''} onChange={(event) => update('packageDimensions', { ...form.packageDimensions, [key]: event.target.value })} className="admin-field__control" /></label>)}
               {errors.packageDimensions && <p className="admin-field__error">{errors.packageDimensions}</p>}
               <label className="admin-field"><span>Highlights</span><input value={form.highlights || ''} onChange={event => update('highlights', event.target.value)} className="admin-field__control" placeholder="Separate highlights with commas" /></label>
-              <label className="admin-field">
+              {!technologyCatalog && <><label className="admin-field">
                 <span>Fabric</span>
                 <input value={form.fabric} onChange={(event) => update('fabric', event.target.value)} className="admin-field__control" placeholder="Silk" />
               </label>
               <label className="admin-field">
                 <span>Occasion</span>
                 <input value={form.occasion} onChange={(event) => update('occasion', event.target.value)} className="admin-field__control" placeholder="Wedding" />
-              </label>
+              </label></>}
               <label className="admin-field">
                 <span>Tags</span>
-                <input value={form.tags} onChange={(event) => update('tags', event.target.value)} className="admin-field__control" placeholder="festive, silk" />
+                <input value={form.tags} onChange={(event) => update('tags', event.target.value)} className="admin-field__control" placeholder={technologyCatalog ? 'USB-C, wireless, fast charging' : 'Product search tags'} />
               </label>
               <label className="admin-field">
                 <span>Colors</span>
-                <input value={form.colors} onChange={(event) => update('colors', event.target.value)} className="admin-field__control" placeholder="Pink, Maroon" />
+                <input value={form.colors} onChange={(event) => update('colors', event.target.value)} className="admin-field__control" placeholder={technologyCatalog ? 'Black, White, Blue' : 'Product colours'} />
               </label>
             </div>
           </details>

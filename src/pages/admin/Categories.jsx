@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Archive, ArrowDown, ArrowUp, Eye, FolderTree, Package, Pencil, Plus, RotateCcw, Trash2, X } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import { Archive, ArrowDown, ArrowUp, Eye, FolderTree, LoaderCircle, Package, Pencil, Plus, RotateCcw, Trash2, X } from 'lucide-react';
 import CategoryForm from '../../components/admin/CategoryForm';
 import SearchFilterBar from '../../components/admin/SearchFilterBar';
 import StatusBadge from '../../components/admin/StatusBadge';
@@ -8,6 +9,7 @@ import { AdminTable } from './Products';
 import api from '../../services/api';
 import { normalizeImageUrl } from '../../services/normalize';
 import { asCatalogList } from '../../utils/catalogOptions';
+import AppToast from '../../components/ui/AppToast';
 
 const emptyImpact = { productCount: 0, activeProductCount: 0, draftCount: 0, couponCount: 0, childCount: 0, canDelete: false };
 
@@ -17,8 +19,11 @@ export default function Categories() {
   const [status, setStatus] = useState('all');
   const [parent, setParent] = useState('all');
   const [message, setMessage] = useState({ type: '', text: '' });
+  const [toast, setToast] = useState(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState('');
+  const [operation, setOperation] = useState('');
+  const [formActivity, setFormActivity] = useState('');
   const [selected, setSelected] = useState([]);
   const [editor, setEditor] = useState(null);
   const [action, setAction] = useState(null);
@@ -32,6 +37,11 @@ export default function Categories() {
   }, []);
 
   useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    if (!toast) return undefined;
+    const timer = window.setTimeout(() => setToast(null), 4500);
+    return () => window.clearTimeout(timer);
+  }, [toast]);
 
   const roots = useMemo(() => categories.filter((category) => !category.parent && !category.isArchived), [categories]);
   const filtered = useMemo(() => categories.filter((category) => {
@@ -53,17 +63,22 @@ export default function Categories() {
     empty: categories.filter((item) => !item.isArchived && Number(item.productCount || 0) === 0).length,
   }), [categories]);
 
-  const notify = (text, type = 'success') => setMessage({ type, text });
+  const notify = (text, type = 'success') => {
+    if (type === 'success') setToast({ type, title: 'Categories', message: text });
+    else setMessage({ type, text });
+  };
+  const progress = operation || formActivity || (action?.loading ? 'Checking category links' : '') || (loading ? 'Loading categories' : '');
 
   const toggleStatus = async (category) => {
     if (busy) return;
     setBusy(category._id);
+    setOperation(category.isActive ? 'Hiding category' : 'Showing category');
     try {
       const updated = await api.patch(`/admin/categories/${category._id}/status`, { isActive: !category.isActive });
       await load();
       notify(`${category.name} is now ${updated.isActive ? 'visible' : 'hidden'}.`);
     } catch (error) { notify(error.message, 'error'); }
-    finally { setBusy(''); }
+    finally { setBusy(''); setOperation(''); }
   };
 
   const openAction = async (category, kind) => {
@@ -80,6 +95,7 @@ export default function Categories() {
     if (!action || busy) return;
     const { category } = action;
     setBusy(category._id);
+    setOperation(operation === 'delete' ? 'Deleting category' : operation === 'reassign' ? 'Moving linked items' : operation === 'restore' ? 'Restoring category' : 'Archiving category');
     setAction((current) => ({ ...current, error: '' }));
     try {
       let response;
@@ -90,10 +106,11 @@ export default function Categories() {
       await load();
       setSelected((current) => current.filter((id) => id !== category._id));
       setAction(null);
-      notify(response?.message || 'Category updated.');
+      if (response?.mediaCleanup?.failed?.length) notify(`Category updated, but ${response.mediaCleanup.failed.length} upload(s) could not be removed. Check server logs.`, 'error');
+      else notify(response?.message || 'Category updated.');
     } catch (error) {
       setAction((current) => ({ ...current, error: error.message }));
-    } finally { setBusy(''); }
+    } finally { setBusy(''); setOperation(''); }
   };
 
   const moveCategory = async (category, direction) => {
@@ -106,18 +123,20 @@ export default function Categories() {
     [siblings[index], siblings[destination]] = [siblings[destination], siblings[index]];
     const items = siblings.map((item, itemIndex) => ({ id: item._id, displayOrder: itemIndex * 10 }));
     setBusy(category._id);
+    setOperation('Updating category order');
     try {
       await api.put('/admin/categories/reorder', { items });
       const orders = new Map(items.map((item) => [item.id, item.displayOrder]));
       setCategories((current) => current.map((item) => orders.has(item._id) ? { ...item, displayOrder: orders.get(item._id) } : item));
       notify('Category order updated.');
     } catch (error) { notify(error.message, 'error'); }
-    finally { setBusy(''); }
+    finally { setBusy(''); setOperation(''); }
   };
 
   const runBulk = async (operation) => {
     if (!selected.length || busy) return;
     setBusy('bulk');
+    setOperation('Updating selected categories');
     try {
       await Promise.all(selected.map((id) => operation === 'archive'
         ? api.patch(`/admin/categories/${id}/archive`, {})
@@ -126,7 +145,7 @@ export default function Categories() {
       notify(`${selected.length} categories updated.`);
       setSelected([]);
     } catch (error) { notify(error.message, 'error'); }
-    finally { setBusy(''); }
+    finally { setBusy(''); setOperation(''); }
   };
 
   const toggleSelected = (id) => setSelected((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id]);
@@ -165,7 +184,7 @@ export default function Categories() {
         <SummaryCard label="Need products" value={summary.empty} tone="rose" icon={Package} active={status === 'empty'} onClick={() => setStatus('empty')} />
       </div>
 
-      {message.text && <div role={message.type === 'error' ? 'alert' : 'status'} className={`category-page-message is-${message.type}`}><span>{message.text}</span>{message.type === 'error' ? <button type="button" className="admin-btn-ghost" onClick={load}>Retry categories</button> : <button type="button" aria-label="Dismiss message" onClick={() => setMessage({ type: '', text: '' })}><X size={17} /></button>}</div>}
+      {message.text && <div role="alert" className="category-page-message is-error"><span>{message.text}</span><button type="button" className="admin-btn-ghost" onClick={load}>Retry categories</button></div>}
 
       <SearchFilterBar search={query} onSearch={setQuery} placeholder="Search category, parent, slug or description">
         <select aria-label="Filter category status" value={status} onChange={(event) => setStatus(event.target.value)} className="admin-filter-control"><option value="all">All statuses</option><option value="active">Visible</option><option value="hidden">Hidden</option><option value="empty">Need products</option><option value="archived">Archived</option></select>
@@ -174,10 +193,14 @@ export default function Categories() {
 
       {selected.length > 0 && <div className="category-bulk-bar"><strong>{selected.length} selected</strong><div><button disabled={busy === 'bulk'} type="button" onClick={() => runBulk('show')}>Make visible</button><button disabled={busy === 'bulk'} type="button" onClick={() => runBulk('hide')}>Hide</button><button disabled={busy === 'bulk'} type="button" onClick={() => runBulk('archive')} className="is-danger">Archive</button><button type="button" onClick={() => setSelected([])}>Clear</button></div></div>}
 
-      {loading ? <p role="status" className="admin-card p-5">Loading categories…</p> : <AdminTable title="Category catalogue" emptyTitle="No categories match these filters" heads={['Category', 'Catalogue', 'Visibility', 'Order', 'Actions']} rows={rows} />}
+      {loading ? <div className="category-loading-skeleton" aria-hidden="true"><span /><span /><span /></div> : <AdminTable title="Category catalogue" emptyTitle="No categories match these filters" heads={['Category', 'Catalogue', 'Visibility', 'Order', 'Actions']} rows={rows} />}
 
-      {editor && <CategoryEditor editor={editor} categories={categories} onClose={() => setEditor(null)} onSaved={async () => { await load(); setEditor(null); notify(editor.mode === 'Add' ? 'Category added successfully.' : 'Category changes saved.'); }} />}
+      {editor && <CategoryEditor editor={editor} categories={categories} onActivityChange={setFormActivity} onClose={() => { setEditor(null); setFormActivity(''); }} onSaved={async () => { await load(); setEditor(null); setFormActivity(''); notify(editor.mode === 'Add' ? 'Category added successfully.' : 'Category changes saved.'); }} />}
       {action && <CategoryActionDialog action={action} categories={categories} busy={busy === action.category._id} onChange={setAction} onClose={() => !busy && setAction(null)} onRun={runCategoryAction} />}
+      {typeof document !== 'undefined' && createPortal(<>
+        {progress && <div className="category-process-indicator" role="status" aria-live="polite" aria-label={progress}><span className="category-process-indicator__icon"><LoaderCircle size={21} /></span><span className="category-process-indicator__copy"><strong>{progress}</strong><small>Please wait while we finish this action.</small></span><span className="category-process-indicator__bar" /></div>}
+        <AppToast toast={toast} onDismiss={() => setToast(null)} activeMode="admin" />
+      </>, document.body)}
     </section>
   );
 }
@@ -194,10 +217,10 @@ function SummaryCard({ label, value, icon: Icon, tone = 'wine', active, onClick 
   return <button type="button" className={`category-summary is-${tone}${active ? ' is-active' : ''}`} aria-label={`${label}: ${value}`} aria-pressed={active} onClick={onClick}><span><Icon size={18} /></span><div><strong>{value}</strong><small>{label}</small></div></button>;
 }
 
-function CategoryEditor({ editor, categories, onClose, onSaved }) {
+function CategoryEditor({ editor, categories, onActivityChange, onClose, onSaved }) {
   const [dirty, setDirty] = useState(false);
   const attemptClose = () => { if (!dirty || window.confirm('Discard the unsaved category changes?')) onClose(); };
-  return <div className="category-modal" role="dialog" aria-modal="true" aria-label={`${editor.mode} category`}><button type="button" className="category-modal__backdrop" aria-label="Close category editor" onClick={attemptClose} /><div className="category-modal__panel"><header><div><p>Catalog management</p><h2>{editor.mode === 'Add' ? 'Add a category' : `Edit ${editor.category.name}`}</h2></div><button type="button" aria-label="Close category editor" onClick={attemptClose}><X size={21} /></button></header><div className="category-modal__body"><CategoryForm mode={editor.mode} categoryId={editor.category?._id} availableCategories={categories} onSaved={onSaved} onCancel={onClose} onDirtyChange={setDirty} /></div></div></div>;
+  return <div className="category-modal" role="dialog" aria-modal="true" aria-label={`${editor.mode} category`}><button type="button" className="category-modal__backdrop" aria-label="Close category editor" onClick={attemptClose} /><div className="category-modal__panel"><header><div><p>Catalog management</p><h2>{editor.mode === 'Add' ? 'Add a category' : `Edit ${editor.category.name}`}</h2></div><button type="button" aria-label="Close category editor" onClick={attemptClose}><X size={21} /></button></header><div className="category-modal__body"><CategoryForm mode={editor.mode} categoryId={editor.category?._id} availableCategories={categories} onSaved={onSaved} onCancel={onClose} onDirtyChange={setDirty} onActivityChange={onActivityChange} /></div></div></div>;
 }
 
 function CategoryActionDialog({ action, categories, busy, onChange, onClose, onRun }) {

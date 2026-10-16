@@ -168,7 +168,7 @@ function ImportWorkspace({ navigate }) {
   };
 
   return (
-    <section className="space-y-5">
+    <section className="reel-import space-y-5">
       <PageHeader title="Reel Product Import" note="Turn a product reel into review-ready Product Drafts. Nothing is published automatically." />
 
       <div className="grid gap-5 xl:grid-cols-[1.35fr_0.65fr]">
@@ -572,8 +572,8 @@ function ReviewWorkspace({ jobId }) {
   const analyzedCount = candidates.filter((candidate) => candidate.analysis?.status === 'completed').length;
 
   return (
-    <section className="space-y-5">
-      <PageHeader title="Review Reel Products" note={job.sourceVideo?.originalFilename || 'Product reel'}>
+    <section className="reel-import space-y-5">
+      <PageHeader title="Review Reel Products" note={job.sourceVideo?.originalFilename || 'Product reel'} noteInline>
         <a href="/admin/reel-import" className="inline-flex h-10 items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-xs font-black text-charcoal"><ArrowLeft className="h-4 w-4" />Import history</a>
       </PageHeader>
       {publishedProducts.length > 0 && <div role="status" className="admin-card p-5"><p className="font-bold text-emerald-800">Your products are published and ready to edit.</p><div className="mt-3 flex flex-wrap gap-3">{publishedProducts.map((product) => <a key={product._id} href={'/admin/products/edit?id=' + product._id} className="admin-btn-ghost">Edit {product.name}</a>)}</div></div>}

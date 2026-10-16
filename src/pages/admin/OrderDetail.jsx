@@ -153,7 +153,7 @@ export default function OrderDetail({ route = '' }) {
 
   return <section className="order-detail-workspace space-y-5">
     <div className="admin-card p-4"><WorkflowSmartFill key={orderId} workflow="support" form={supportDraft} onChange={setSupportDraft} apiBase={`${apiBase}/smart-fill`} context={{ orderId }} disabled={saving} />{supportDraft.reply && <div><label className="admin-field mt-3">Reviewed customer reply (not sent)<textarea className="admin-field__control min-h-24" maxLength={2000} value={supportDraft.reply} onChange={event => setSupportDraft(current => ({ ...current, reply: event.target.value }))} /></label><CopySmartDraft value={supportDraft.reply} /></div>}{supportDraft.summary && <p className="mt-3 text-sm text-theme-muted">Private summary: {supportDraft.summary}</p>}</div>
-    <PageHeader title={displayId} kicker={seller ? 'Seller / Order' : 'Admin / Order'} note={`Placed ${new Date(order.createdAt).toLocaleString('en-IN')} · Revision ${Number(order.revision || 0)}`}>
+    <PageHeader title={displayId} kicker={seller ? 'Seller / Order' : 'Admin / Order'} note={`Placed ${new Date(order.createdAt).toLocaleString('en-IN')} · Revision ${Number(order.revision || 0)}`} noteInline>
       <button type="button" className="admin-btn-ghost inline-flex items-center gap-2" onClick={() => copy(order._id, setMessage)}><Clipboard size={15} />Copy order ID</button>
       <a href={`${apiBase}/orders`} className="admin-btn-ghost">Back to orders</a>
     </PageHeader>

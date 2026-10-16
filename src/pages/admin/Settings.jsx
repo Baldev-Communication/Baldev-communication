@@ -107,7 +107,7 @@ export default function Settings({ route = '' }) {
   const logo = normalizeImageUrl(form.brandIdentityEnabled ? form.logoUrl : form.logoUrl ?? brand.logo) || logoFallback;
 
   return <section className="store-settings">
-    <PageHeader title="Store settings" note="Everything you need to manage your business, in one place." />
+    <PageHeader title="Store settings" />
     {loading ? <div className="admin-card p-6" role="status">Loading settings...</div> : loadError ? <div role="alert" className="store-settings__notice"><p>{loadError}</p><button type="button" onClick={load} className="admin-btn-ghost">Retry settings</button></div> : <>
       <div className="store-settings__overview">
         <div className="store-settings__brand"><StoreLogo src={logo} name={form.storeName || 'Your store'} /><div><strong>{form.storeName || 'Your store'}</strong><span>{form.legalBusinessName || 'Business preferences and storefront identity'}</span></div></div>
@@ -120,7 +120,6 @@ export default function Settings({ route = '' }) {
             <label className="store-settings__search"><Search size={17} /><input aria-label="Find a settings section" placeholder="Find settings" value={search} onChange={event => setSearch(event.target.value)} /></label>
             <nav aria-label="Settings sections">{sections.map(section => { const Icon = ICONS[section.icon]; return <button type="button" key={section.id} disabled={uploading || smsBusy || alertsBusy || trafficBusy || rentalsBusy} aria-current={active === section.id ? 'page' : undefined} onClick={() => { setActive(section.id); if (section.id === 'sms') setSmsOpened(true); if (section.id === 'order-alerts') setAlertsOpened(true); if (section.id === 'traffic') setTrafficOpened(true); if (section.id === 'rentals') setRentalsOpened(true); }}><Icon size={18} /><span>{section.title}</span><ChevronRight size={15} /></button>; })}</nav>
             {!sections.length && <p className="store-settings__muted">No matching section. Try payments, logo or delivery.</p>}
-            <p className="store-settings__sidebar-note"><ShieldCheck size={16} /> Changes are saved securely and recorded in your audit log.</p>
           </aside>
           <div className="store-settings__panel">
             <div className="store-settings__panel-heading"><span>{String(availableSections.indexOf(selected) + 1).padStart(2, '0')} / {String(availableSections.length).padStart(2, '0')}</span><h2>{selected.title}</h2><p>{selected.note}</p></div>

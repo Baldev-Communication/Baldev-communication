@@ -1,10 +1,11 @@
-import { firstInvalidDraftAttribute } from './draftAttributes';
+import { draftAttributeDefinitions, firstInvalidDraftAttribute } from './draftAttributes';
 
 export const SMART_FIELDS = {
   name: 'Product name', brand: 'Brand', sku: 'SKU (generated product code)', category: 'Category', subCategory: 'Subcategory', shortDescription: 'Short description',
   description: 'Description', price: 'Selling price', originalPrice: 'Original price / MRP', colors: 'Colours', fabric: 'Fabric',
   occasion: 'Occasion', tags: 'Tags', highlights: 'Highlights', sizes: 'Available sizes', sizingMode: 'Sizing',
   countryOfOrigin: 'Country of origin', packageDimensions: 'Packed dimensions', shippingWeightKg: 'Packed weight',
+  warranty: 'Warranty / guarantee',
   metaTitle: 'SEO title', metaDescription: 'SEO description', metaKeywords: 'SEO keywords',
 };
 export const sameValue = (a, b) => JSON.stringify(a ?? '') === JSON.stringify(b ?? '');
@@ -20,7 +21,7 @@ function generatedProductCode() {
 }
 export const fieldValue = (form, key) => key.startsWith('attributeValues.') ? form.attributeValues?.[key.split('.')[1]] : key === 'category' ? id(form.category) : form[key];
 const empty = (value, key) => value === undefined || value === null || value === '' || (Array.isArray(value) && !value.length)
-  || (key === 'brand' && value === 'Baldev Communication')
+  || (['brand', 'attributeValues.brand'].includes(key) && value === 'Baldev Communication')
   || (key === 'packageDimensions' && (!value || Object.values(value).every(item => !Number(item))))
   || (typeof value === 'string' && !value.trim()) || (key === 'sizingMode' && value === 'auto')
   || (['price', 'sellingPrice', 'originalPrice', 'shippingWeightKg'].includes(key) && Number(value) === 0);
@@ -39,9 +40,36 @@ export function smartPhotos(form) {
   return [...new Set([form.image, ...(form.images || []).map(image => typeof image === 'string' ? image : image?.url)].filter(value => typeof value === 'string' && value && !/placeholder/i.test(value)))].slice(0, 12);
 }
 
-export function smartRequest(form, notes, imageUrls, webSearch = true) {
+export const smartProviders = status => Array.isArray(status?.providers) ? status.providers.filter(item => ['gemini', 'openai'].includes(item.id)) : [
+  { id: 'gemini', label: 'Gemini', enabled: status?.enabled !== false, webSupported: status?.webSupported !== false },
+  { id: 'openai', label: 'ChatGPT', enabled: false, webSupported: false },
+];
+export const smartProvider = (status, preference) => smartProviders(status).find(item => item.id === preference && item.enabled)?.id
+  || smartProviders(status).find(item => item.id === status?.defaultProvider && item.enabled)?.id
+  || smartProviders(status).find(item => item.enabled)?.id || 'gemini';
+
+export function smartRequest(form, notes, imageUrls, webSearch = true, provider) {
   const fields = ['name', 'brand', 'category', 'categoryDefinitionKey', 'subCategory', 'fabric', 'colors', 'sizes', 'occasion', 'description', 'attributeValues'];
-  return { notes, imageUrls, webSearch, existing: Object.fromEntries(fields.map(key => [key, key === 'category' ? id(form.category) : form[key]])) };
+  return { notes, imageUrls, webSearch, ...(provider ? { provider } : {}), existing: Object.fromEntries(fields.map(key => [key, key === 'category' ? id(form.category) : form[key]])) };
+}
+
+export function smartInputSignature(form, { provider, notes, photos, webSearch, autoSpecifications }) {
+  return JSON.stringify({ provider, notes, photos, webSearch, autoSpecifications, name: form.name,
+    category: id(form.category), subCategory: form.subCategory, brand: form.brand,
+    model: form.attributeValues?.model, ram: form.attributeValues?.ram, storage: form.attributeValues?.storage });
+}
+
+export function automaticSpecificationPatch(rows, form) {
+  const verified = row => {
+    if (!row.empty || row.evidence?.source !== 'web' || row.evidence?.reviewRequired) return false;
+    try { const url = new URL(row.evidence.url); return url.protocol === 'https:' && !url.username && !url.password; } catch { return false; }
+  };
+  const manual = new Set(['condition', 'device_lock', 'country_of_origin', 'regulatory_certification', 'sar_value', 'gtin', 'mpn', 'warranty', 'warranty_type', 'warranty_terms', 'box_contents']);
+  const candidates = rows.filter(row => row.key.startsWith('attributeValues.') && verified(row) && !manual.has(row.key.split('.')[1])
+    && (!(form.trackVariants || form.variants?.length) || !['ram', 'storage', 'colour'].includes(row.key.split('.')[1])));
+  if (!candidates.length) return [];
+  const related = rows.filter(row => ['brand', 'category'].includes(row.key) && verified(row));
+  return selectedSmartPatch(rows, [...candidates, ...related].map(row => row.key), form);
 }
 
 export function suggestionRows(result, baseline, { categories = [], structure, priceField = 'price', seo = true } = {}) {
@@ -71,7 +99,10 @@ export function suggestionRows(result, baseline, { categories = [], structure, p
     if (sameValue(before, value)) continue;
     rows.push({ key, field, label, value, before, empty: empty(before, key), evidence: result.fieldSources?.[field], categoryBefore: id(baseline.category), ...(key === 'category' ? { subCategoryBefore: baseline.subCategory } : {}) });
   }
-  for (const attribute of structure?.attributes || []) {
+  const attributes = draftAttributeDefinitions(structure, categories, {
+    ...baseline, category: data.category || baseline.category, subCategory: data.subCategory || baseline.subCategory,
+  });
+  for (const attribute of attributes) {
     const value = data.attributeValues?.[attribute.key];
     const key = 'attributeValues.' + attribute.key;
     if (typeof value !== 'string' || !value.trim()) continue;

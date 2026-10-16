@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { ArrowRight, Banknote, CheckCheck, ChevronLeft, ChevronRight, Download, Package, Plus, RefreshCw, Search, ShoppingBag, Truck, Users, Wallet } from 'lucide-react';
+import { ArrowRight, Banknote, CheckCheck, ChevronLeft, ChevronRight, CircleHelp, Download, Package, Plus, RefreshCw, Search, ShoppingBag, Truck, Users, Wallet } from 'lucide-react';
 import api from '../../services/api';
-import { useAuth } from '../../context/AuthContext';
 import PageState from '../../components/ui/PageState';
 import { normalizeImageUrl } from '../../services/normalize';
 import { validateDashboardResponse } from '../../utils/dashboardData';
@@ -20,7 +19,6 @@ const day = value => value ? new Date(value.length === 7 ? `${value}-01T00:00:00
 const today = () => new Date(Date.now() + 330 * 60000).toISOString().slice(0, 10);
 
 export default function Dashboard() {
-  const { user } = useAuth();
   const [selection, setSelection] = useState('30d');
   const [period, setPeriod] = useState({ range: '30d' });
   const [from, setFrom] = useState(''); const [to, setTo] = useState('');
@@ -69,7 +67,7 @@ export default function Dashboard() {
   ];
   const download = () => { try { downloadDashboard(overview, periodLabel); setDownloadError(''); } catch { setDownloadError('Download could not start. Please try again in your browser.'); } };
   return <section className="store-dashboard">
-    <header className="dash-heading"><div><p className="admin-kicker">Business overview</p><h1>Dashboard</h1><p className="admin-note">Hello, {user?.name?.split(' ')[0] || 'Admin'}. Here is how your store is doing.</p></div><div className="dash-actions"><a href="/admin/products/add" className="admin-btn-primary"><Plus size={16} /> Add product</a><a href="/admin/reports" className="admin-btn-ghost">Reports <ArrowRight size={15} /></a></div></header>
+    <header className="dash-heading"><h1>Dashboard</h1><div className="dash-actions"><a href="/admin/products/add" className="admin-btn-primary"><Plus size={16} /> Add product</a><a href="/admin/reports" className="admin-btn-ghost">Reports <ArrowRight size={15} /></a></div></header>
     <div className="admin-card dash-toolbar">
       <div className="dash-range-buttons" aria-label="Dashboard period">{ranges.map(([value, label]) => <button key={value} type="button" aria-pressed={selection === value} onClick={() => chooseRange(value)}>{label}</button>)}</div>
       <div className="dash-actions"><button type="button" className="admin-btn-ghost" disabled={loading} onClick={() => setReload(value => value + 1)}><RefreshCw size={15} className={loading ? 'animate-spin' : ''} /> Refresh</button><button type="button" className="admin-btn-ghost" onClick={download} disabled={loading || !!error || !overview}><Download size={15} /> Export CSV</button></div>
@@ -80,25 +78,23 @@ export default function Dashboard() {
     {downloadError && <p role="alert" className="dash-error">{downloadError}</p>}
     {loading ? <PageState loading loadingLabel="Loading store performance…" /> : error ? <PageState error={error} onRetry={() => setReload(value => value + 1)} /> : <>
       <div className="dash-section-label"><h2>{periodLabel}</h2><span>All matching records · India time (IST)</span></div>
-      <div className="dash-metrics">{cards.map(([label, key, format, Icon, note]) => <article className="admin-card dash-metric" key={key}><div className="dash-metric-top"><span>{label}</span><Icon size={18} /></div><strong>{format(stats[key]?.value)}</strong><MetricChange metric={stats[key]} /><p>{note}</p></article>)}</div>
-      <p className="dash-comparison-note">Changes compare the previous equal-length period. A dash means there is no earlier value to compare.</p>
+      <div className="dash-metrics">{cards.map(([label, key, format, Icon, note]) => <article className="admin-card dash-metric" key={key}><div className="dash-metric-top"><span>{label}</span><Icon size={18} /></div><strong>{format(stats[key]?.value)}</strong><MetricChange metric={stats[key]} /><details className="dash-metric-info"><summary aria-label={`About ${label}`} title={`About ${label}`}><CircleHelp size={14} /></summary><p>{note}</p></details></article>)}</div>
       <Panel title="Needs your attention" note={attentionScope === 'period' ? 'Open tasks for orders placed in these dates; returns use the request date.' : 'Open tasks across all dates.'}><div className="dash-task-scope"><label>Tasks for <select aria-label="Task period" value={attentionScope} onChange={event => setAttentionScope(event.target.value)}><option value="period">Selected dates</option><option value="all">All dates</option></select></label></div><div className="dash-tasks">{tasks.map(([key, label, note, Icon]) => <a key={key} href={`${key === 'returns' ? '/admin/returns' : '/admin/orders'}?${new URLSearchParams({ ...(attentionScope === 'period' ? period : {}), ...(key === 'returns' ? { status: 'Requested' } : { attention: key }) })}`} className={(overview?.attention?.[key]?.value || 0) > 0 ? 'has-work' : ''}><div><Icon size={19} /><strong>{number(overview?.attention?.[key]?.value)}</strong></div><span>{label}</span><small>{key === 'collection' && overview?.attention?.collection?.amount ? `${currency(overview.attention.collection.amount)} outstanding` : note}</small><ArrowRight className="dash-task-arrow" size={15} /></a>)}</div></Panel>
       <div className="dash-two-columns">
-        <Panel title="Paid order trend" note="Paid order value by order date for the selected period."><SalesChart series={overview?.salesOverview || []} /></Panel>
-        <Panel title="Order status" note="Select a status to see matching orders." href={ordersLink()} link="View orders">{!overview?.orderOverview?.length ? <Empty text="No orders in this period." /> : <div className="dash-status-list">{overview.orderOverview.map(item => <a key={item.label} href={ordersLink({ status: item.label })}><span>{item.label}</span><strong>{number(item.value)}</strong><span className="dash-status-track"><i style={{ width: `${stats.orders?.value ? Math.max(1, item.value / stats.orders.value * 100) : 0}%` }} /></span><small>{stats.orders?.value ? Math.round(item.value / stats.orders.value * 100) : 0}%</small><ArrowRight size={14} /></a>)}</div>}</Panel>
+        <Panel title="Paid order trend" note="By order date"><SalesChart series={overview?.salesOverview || []} /></Panel>
+        <Panel title="Order status" href={ordersLink()} link="View orders">{!overview?.orderOverview?.length ? <Empty text="No orders in this period." /> : <div className="dash-status-list">{overview.orderOverview.map(item => <a key={item.label} href={ordersLink({ status: item.label })}><span>{item.label}</span><strong>{number(item.value)}</strong><span className="dash-status-track"><i style={{ width: `${stats.orders?.value ? Math.max(1, item.value / stats.orders.value * 100) : 0}%` }} /></span><small>{stats.orders?.value ? Math.round(item.value / stats.orders.value * 100) : 0}%</small><ArrowRight size={14} /></a>)}</div>}</Panel>
       </div>
       <div className="dash-two-columns">
-        <Panel title="Recent orders" note={`${number(pagination.total)} orders in the selected period.`} href={ordersLink()} link="View all">
-          <form action="/admin/orders" method="get" className="dash-search"><Search size={17} /><input name="search" aria-label="Search all orders" placeholder="Order ID, customer, email or phone" maxLength={100} required /><button type="submit">Search</button></form><p className="dash-help">Search looks across all order dates.</p>
+        <Panel title={`Recent orders (${number(pagination.total)})`} href={ordersLink()} link="View all">
+          <form action="/admin/orders" method="get" className="dash-search"><Search size={17} /><input name="search" aria-label="Search all orders" placeholder="Order ID, customer, email or phone" maxLength={100} required /><button type="submit">Search</button></form>
           {!overview?.recentOrders?.length ? <Empty text="No orders in this period. Try a wider date range." /> : <div className="dash-order-list">{overview.recentOrders.map(order => <a key={order._id} href={`/admin/orders/detail?id=${encodeURIComponent(order._id)}`}><div className="dash-order-avatar">{(order.user?.name || order.shippingAddress?.fullName || 'C').slice(0, 1).toUpperCase()}</div><div className="dash-order-main"><strong>{order.user?.name || order.shippingAddress?.fullName || 'Customer'}</strong><span>{order.invoiceNumber || `#${order._id.slice(-8).toUpperCase()}`}</span><small>{day(order.createdAt)} · {number(order.itemsCount)} items</small></div><div className="dash-order-amount"><strong>{currency(order.finalAmount)}</strong><span className={`dash-badge ${order.orderStatus === 'Delivered' ? 'is-success' : order.orderStatus === 'Cancelled' ? 'is-muted' : ''}`}>{order.orderStatus || 'Pending'}</span><small>{order.paymentMethod} · {order.paymentStatus}</small></div></a>)}</div>}
           <div className="dash-pagination"><label>Show <select aria-label="Orders per page" value={limit} onChange={event => { setLimit(Number(event.target.value)); setPage(1); }}>{[5, 10, 20].map(value => <option key={value}>{value}</option>)}</select></label><span>Page {pagination.page} of {pagination.totalPages}</span><div><button aria-label="Previous orders" disabled={pagination.page <= 1} onClick={() => setPage(pagination.page - 1)}><ChevronLeft size={18} /></button><button aria-label="Next orders" disabled={pagination.page >= pagination.totalPages} onClick={() => setPage(pagination.page + 1)}><ChevronRight size={18} /></button></div></div>
         </Panel>
-        <Panel title="Best-selling products" note="Top 10 by units in valid COD and paid online orders." href="/admin/products" link="All products">
+        <Panel title="Best-selling products" href="/admin/products" link="All products">
           {!overview?.topProducts?.length ? <Empty text="Products will appear when valid orders are placed in this period." /> : <ol className="dash-products">{overview.topProducts.map((product, index) => <li key={product.key || product.id || index}><span className="dash-rank">{index + 1}</span><div className="dash-product-image">{product.image ? <img src={normalizeImageUrl(product.image)} alt="" loading="lazy" onError={event => { event.currentTarget.style.display = 'none'; }} /> : <Package size={20} />}</div><div className="dash-product-info">{product.id ? <a href={`/admin/products/edit?id=${encodeURIComponent(product.id)}`} title={product.name}>{product.name || 'Product'}</a> : <strong>{product.name || 'Removed product'}</strong>}<span>{number(product.sold)} units ordered</span></div><strong>{currency(product.revenue)}</strong></li>)}</ol>}
-          <p className="dash-help">Item value before order-level discounts, fees and returns adjustments. Cancelled, returned and refunded orders are excluded.</p>
         </Panel>
       </div>
-      <Panel title="Live inventory" note="Current stock across the catalog, not historical stock for the selected dates. Alerts include low or sold-out size / colour variants." href="/admin/inventory?filter=attention" link="Manage stock">
+      <Panel title="Live inventory" note="Current stock" href="/admin/inventory?filter=attention" link="Manage stock">
         <div className="dash-inventory-summary"><span><strong>{number(inventory.active)}</strong> active products</span><span><strong>{number(inventory.alerts)}</strong> need stock attention</span><span><strong>{number(inventory.out)}</strong> sold out</span><span><strong>{number(inventory.total)}</strong> total catalog products</span></div>
         {!inventory.products?.length ? <Empty text="No stock alerts for active products." /> : <div className="dash-stock-grid">{inventory.products.map(product => <a key={product._id} href={`/admin/products/edit?id=${encodeURIComponent(product._id)}`}><div><strong title={product.name}>{product.name}</strong><small>{product.sku || 'No SKU'} · Alert at {product.lowStockAlert ?? 5}</small></div><span className={`dash-badge ${product.availableStock <= 0 ? 'is-muted' : ''}`}>{product.availableStock <= 0 ? 'Sold out' : `${number(product.availableStock)} available`}</span><ArrowRight size={15} /></a>)}</div>}
         {inventory.alerts > 6 && <p className="dash-help">Showing 6 of {number(inventory.alerts)} products needing attention. Open Manage stock for the full list.</p>}
@@ -112,7 +108,7 @@ function MetricChange({ metric }) {
   return <div className={`dash-change ${delta > 0 ? 'is-up' : delta < 0 ? 'is-down' : ''}`}>{delta == null ? '— No comparison' : `${delta > 0 ? '+' : ''}${delta}% vs previous period`}</div>;
 }
 function Panel({ title, note, href, link, children }) {
-  return <section className="admin-card dash-panel"><header><div><h2>{title}</h2><p>{note}</p></div>{href && <a href={href}>{link}<ArrowRight size={14} /></a>}</header>{children}</section>;
+  return <section className="admin-card dash-panel"><header><div><h2>{title}</h2>{note && <p>{note}</p>}</div>{href && <a href={href}>{link}<ArrowRight size={14} /></a>}</header>{children}</section>;
 }
 function Empty({ text }) { return <div className="dash-empty"><Package size={23} /><p>{text}</p></div>; }
 function SalesChart({ series }) {

@@ -1,10 +1,11 @@
-export default function PageHeader({ title, note, actionLabel, actionHref, children, kicker = 'Admin' }) {
+import { CircleHelp } from 'lucide-react';
+
+export default function PageHeader({ title, note, noteInline = false, actionLabel, actionHref, children }) {
   return (
     <div className="admin-card admin-page-header">
       <div className="admin-page-header__copy">
-        <p className="admin-kicker">{kicker} / {title}</p>
-        <h1 className="mt-2">{title}</h1>
-        {note && <p className="admin-note">{note}</p>}
+        <h1>{title}</h1>
+        {note && (noteInline ? <p className="admin-page-header__inline-note">{note}</p> : <details className="admin-page-header__note"><summary aria-label={`About ${title}`} title={`About ${title}`}><CircleHelp size={17} /></summary><p>{note}</p></details>)}
       </div>
       <div className="admin-page-header__actions">
         {children}

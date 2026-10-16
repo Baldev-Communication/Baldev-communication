@@ -3,7 +3,7 @@ import api from '../../services/api';
 import { normalizeProducts } from '../../services/normalize';
 import RelatedProductCarousel from './RelatedProductCarousel';
 import { SETTINGS_CHANGED_EVENT, SETTINGS_STORAGE_KEY } from '../../config/storeSettings';
-export default function CompleteLook({ productId, storeSlug = '', navigate }) {
+export default function CompleteLook({ productId, storeSlug = '', navigate, technologyCatalog = false }) {
   const [rows, setRows] = useState([]), [revision, setRevision] = useState(0);
   useEffect(() => {
     const refresh = () => setRevision(value => value + 1);
@@ -18,5 +18,5 @@ export default function CompleteLook({ productId, storeSlug = '', navigate }) {
     return () => { alive = false; };
   }, [productId, storeSlug, revision]);
   if (!rows.length) return null;
-  return <div className="container-page py-6"><RelatedProductCarousel products={rows} navigate={navigate} title="Complete the look" description="Matching pieces, chosen by the store or matched to this product’s occasion and colours. Each item is optional and selected separately." /></div>;
+  return <div className="container-page py-6"><RelatedProductCarousel products={rows} navigate={navigate} title={technologyCatalog ? 'Accessories and related products' : 'Complete the look'} description={technologyCatalog ? 'Explore related products and accessories. Check device compatibility before adding an accessory.' : 'Matching pieces, chosen by the store or matched to this product’s occasion and colours. Each item is optional and selected separately.'} /></div>;
 }

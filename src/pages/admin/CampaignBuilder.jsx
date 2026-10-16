@@ -3,10 +3,9 @@ import {
   AlertTriangle, Archive, ArrowLeft, ArrowRight, BadgePercent, BarChart3, Check,
   CheckCircle2, CircleDollarSign, Clock3, Copy, Eye, Gift, Megaphone, Monitor,
   MoreHorizontal, Pause, Pencil, Plus, RefreshCw, RotateCcw, Rocket, Smartphone,
-  Sparkles, Target, Users, WandSparkles, XCircle,
+  Sparkles, Target, Users, XCircle,
 } from 'lucide-react';
 import ImageUploader from '../../components/admin/ImageUploader';
-import PageHeader from '../../components/admin/PageHeader';
 import ConfirmModal from '../../components/admin/ConfirmModal';
 import PageState from '../../components/ui/PageState';
 import api from '../../services/api';
@@ -194,10 +193,9 @@ export default function CampaignBuilder() {
   if (error && !data) return <PageState error={error} onRetry={() => load()} />;
 
   return <section className="campaign-workspace mx-auto max-w-[1480px] space-y-5 pb-24 text-slate-900">
-    {!editor && <PageHeader title="Campaigns" note="Plan the audience, offer, creative and schedule in one reliable workflow." />}
     {!editor && <>
       <header className="campaign-hero overflow-hidden rounded-[28px] bg-gradient-to-br from-[#67152f] via-[#842343] to-[#a74564] p-5 text-white shadow-[0_18px_55px_rgba(91,22,46,.2)] sm:p-7">
-        <div className="flex flex-wrap items-end justify-between gap-5"><div><p className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.18em] text-white/65"><WandSparkles size={14} /> Campaign command center</p><h1 className="mt-2 font-display text-3xl font-black sm:text-4xl">Turn an offer into a measurable storefront moment</h1><p className="mt-2 max-w-2xl text-sm leading-6 text-white/70">Draft safely, publish coupon and banner together, then follow clicks, orders and paid revenue.</p></div><button type="button" onClick={() => openNew()} className="flex h-12 items-center gap-2 rounded-xl bg-white px-5 text-sm font-black text-wine shadow-lg"><Plus size={17} /> Create campaign</button></div>
+        <div className="flex flex-wrap items-center justify-between gap-3"><h1 className="font-display text-3xl font-black">Campaigns</h1><button type="button" onClick={() => openNew()} className="flex h-12 items-center gap-2 rounded-xl bg-white px-5 text-sm font-black text-wine shadow-lg"><Plus size={17} /> Create campaign</button></div>
       </header>
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
         <Metric icon={Eye} label="Impressions" value={number(stats.impressions)} note={`${number(stats.ctr)}% click rate`} />

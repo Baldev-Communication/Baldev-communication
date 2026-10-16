@@ -61,8 +61,8 @@ export default function ProductDeleteDialog({ product, productsPath, onClose, on
   const remove = () => {
     if (!review?.eligible || confirmation.trim() !== review.confirmation || !acknowledged) return;
     run(async () => {
-      await api.delete(`${productsPath}/${product._id}/permanent`, { confirm: confirmation.trim(), version: review.version });
-      onDeleted(product._id);
+      const result = await api.delete(`${productsPath}/${product._id}/permanent`, { confirm: confirmation.trim(), version: review.version });
+      onDeleted(product._id, result.mediaCleanup);
     });
   };
   return <div className="product-delete-overlay">

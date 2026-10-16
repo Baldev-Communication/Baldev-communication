@@ -35,13 +35,14 @@ function makeSlug(value) {
   return String(value || '').toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 }
 
-export default function CategoryForm({ mode = 'Add', categoryId, onSaved, onCancel, onDirtyChange, availableCategories }) {
+export default function CategoryForm({ mode = 'Add', categoryId, onSaved, onCancel, onDirtyChange, onActivityChange, availableCategories }) {
   const [form, setForm] = useState(emptyCategory);
   const [initialSnapshot, setInitialSnapshot] = useState(JSON.stringify(emptyCategory));
   const [categories, setCategories] = useState(Array.isArray(availableCategories) ? availableCategories : []);
   const [definitions, setDefinitions] = useState([]);
   const [loading, setLoading] = useState(Boolean(categoryId));
   const [saving, setSaving] = useState(false);
+  const [uploadBusy, setUploadBusy] = useState({ image: false, socialImage: false });
   const [message, setMessage] = useState({ type: '', text: '' });
   const [loadError, setLoadError] = useState('');
   const [reload, setReload] = useState(0);
@@ -111,6 +112,9 @@ export default function CategoryForm({ mode = 'Add', categoryId, onSaved, onCanc
   const dirty = JSON.stringify(form) !== initialSnapshot;
   useEffect(() => { onDirtyChange?.(dirty); }, [dirty, onDirtyChange]);
   useEffect(() => {
+    onActivityChange?.(saving ? 'Saving category' : uploadBusy.image || uploadBusy.socialImage ? 'Uploading category image' : loading ? 'Loading category' : '');
+  }, [saving, uploadBusy, loading, onActivityChange]);
+  useEffect(() => {
     if (!dirty) return undefined;
     const warn = (event) => { event.preventDefault(); event.returnValue = ''; };
     window.addEventListener('beforeunload', warn);
@@ -161,7 +165,7 @@ export default function CategoryForm({ mode = 'Add', categoryId, onSaved, onCanc
       setInitialSnapshot(JSON.stringify(next));
       setAutoSlug(!categoryId);
       setRemovedMedia({ image: false, socialImage: false });
-      setMessage({ type: 'success', text: categoryId ? 'Category changes saved.' : 'Category added successfully.' });
+      if (!onSaved) setMessage({ type: 'success', text: categoryId ? 'Category changes saved.' : 'Category added successfully.' });
       onSaved?.(saved);
     } catch (error) {
       setMessage({ type: 'error', text: error.message });
@@ -220,7 +224,7 @@ export default function CategoryForm({ mode = 'Add', categoryId, onSaved, onCanc
           <TextArea label="Description" value={form.description} onChange={(value) => update('description', value)} maxLength={1200} rows={4} />
           <CharacterCount value={form.description} max={1200} />
           <div className="mt-5">
-            <ImageUploader label="Choose Category Image" helpText="JPG, PNG or WEBP. A portrait or square image around 1200px works best; large files are compressed before upload." uploadContext="categories" value={form.image ? [{ url: form.image }] : []} onChange={(images) => updateMedia('image', images)} compressAboveMb={2} maxUploadMb={20} targetSizeMb={0.5} showPrimaryControl={false} />
+            <ImageUploader label="Choose Category Image" helpText="JPG, PNG or WEBP. A portrait or square image around 1200px works best; large files are compressed before upload." uploadContext="categories" value={form.image ? [{ url: form.image }] : []} onChange={(images) => updateMedia('image', images)} onBusyChange={(value) => setUploadBusy((current) => ({ ...current, image: Boolean(value) }))} compressAboveMb={2} maxUploadMb={20} targetSizeMb={0.5} showPrimaryControl={false} />
           </div>
         </section>
 
@@ -233,7 +237,7 @@ export default function CategoryForm({ mode = 'Add', categoryId, onSaved, onCanc
             <div><TextArea label="SEO description" value={form.metaDescription} onChange={(value) => update('metaDescription', value)} placeholder="Short description for search results" maxLength={300} rows={3} /><CharacterCount value={form.metaDescription} max={300} /></div>
           </div>
           <div className="mt-5">
-            <ImageUploader label="Choose Social Image" helpText="Optional landscape image for shared category links. The category image is used when empty." uploadContext="categories" value={form.socialImage ? [{ url: form.socialImage }] : []} onChange={(images) => updateMedia('socialImage', images)} compressAboveMb={2} maxUploadMb={20} targetSizeMb={0.5} showPrimaryControl={false} />
+            <ImageUploader label="Choose Social Image" helpText="Optional landscape image for shared category links. The category image is used when empty." uploadContext="categories" value={form.socialImage ? [{ url: form.socialImage }] : []} onChange={(images) => updateMedia('socialImage', images)} onBusyChange={(value) => setUploadBusy((current) => ({ ...current, socialImage: Boolean(value) }))} compressAboveMb={2} maxUploadMb={20} targetSizeMb={0.5} showPrimaryControl={false} />
           </div>
         </section>
       </div>

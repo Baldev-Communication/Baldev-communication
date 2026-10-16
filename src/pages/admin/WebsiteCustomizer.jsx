@@ -383,7 +383,7 @@ export default function WebsiteCustomizer({ mode = 'admin' }) {
   if (loading) return <section className="admin-card p-8 text-sm text-slate-500" role="status">Loading Website Designer…</section>;
   if (!draft) return <section className="admin-card space-y-4 p-8"><h2 className="text-lg font-bold">Website Designer could not load</h2><p role="alert">{message}</p><button type="button" className="admin-btn" onClick={() => loadWorkspace()}>Try again</button></section>;
 
-  return <section className="min-w-0 space-y-5">
+  return <section className="website-designer min-w-0 space-y-5">
     <PageHeader title={sellerMode ? 'Storefront Studio' : 'Website Designer'} note="Your store, your style. Edit privately, preview real pages, and publish with confidence." />
     <p className="rounded-xl border border-theme-border bg-white p-4 text-xs leading-6 text-slate-600">Shared brand identity, contact details and announcements configured in <a href={sellerMode ? '/seller/settings' : '/admin/settings'} className="font-bold text-wine underline">Store settings</a> take priority over theme defaults. {workspace.managedFields?.length ? <>Currently managed there: <strong>{workspace.managedFields.join(', ')}</strong>.</> : 'No designer fields are currently overridden by Store settings.'}</p>
     <div className="admin-card space-y-4 p-4">

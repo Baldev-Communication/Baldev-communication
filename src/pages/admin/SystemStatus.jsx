@@ -58,7 +58,7 @@ export default function SystemStatus() {
   if (!data && error) return <PageState error={error} onRetry={() => load()} />;
   if (!data) return <PageState loading loadingLabel="Checking system access..." />;
 
-  return <section className="min-w-0 space-y-5">
+  return <section className="system-status min-w-0 space-y-5">
     <PageHeader title="System & updates" note="Subscription, usage limits and assigned releases for this installation.">
       <button type="button" className="admin-btn-ghost" onClick={() => load(true)} disabled={Boolean(busy)}><RefreshCw size={16} /> Check now</button>
     </PageHeader>

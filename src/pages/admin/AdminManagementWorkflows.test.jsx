@@ -10,6 +10,7 @@ import Support from './Support';
 import Subscribers from './Subscribers';
 import Dashboard from './Dashboard';
 import ProductForm from '../../components/admin/ProductForm';
+import ProductSmartFill from '../../components/admin/ProductSmartFill';
 import Products from './Products';
 import ProductCaptionModal from '../../components/admin/ProductCaptionModal';
 import api from '../../services/api';
@@ -19,6 +20,55 @@ jest.mock('../../context/AuthContext', () => ({ useAuth: () => ({ user: { name: 
 jest.mock('../../components/admin/ImageUploader', () => ({ onChange, uploadPath, onBusyChange }) => <><button type="button" onClick={() => onChange([{ url: 'https://media.example/photo.jpg' }])}>Upload photo {uploadPath}</button>{onBusyChange ? <><button type="button" onClick={() => onBusyChange(true)}>Begin photo upload</button><button type="button" onClick={() => onBusyChange(false)}>Finish photo upload</button></> : null}</>);
 jest.mock('../../components/admin/VideoUploader', () => () => null);
 const category = { _id: 'cat', name: 'Sarees', isActive: false };
+
+test('Smart Fill selects sourced phone specs and asks the user to confirm standard manufacturer warranty', async () => {
+  api.get.mockResolvedValue({ enabled: true, webSupported: true });
+  api.post.mockResolvedValue({ mode: 'web', suggestion: { attributeValues: { processor: 'A16 Bionic', warranty: '1 year limited warranty' } }, fieldSources: {
+    'attribute.processor': { source: 'web', quote: 'A16 Bionic', url: 'https://example.com/specs' },
+    'attribute.warranty': { source: 'web', quote: 'Limited warranty', reviewRequired: true, note: 'Confirm coverage for this item.' },
+  } });
+  const onApply = jest.fn();
+  render(<ProductSmartFill form={{ name: 'Apple iPhone 15 128 GB', attributeValues: {} }} categories={[]} structure={{ attributes: [{ key: 'processor', label: 'Processor' }, { key: 'warranty', label: 'Warranty period' }] }} onApply={onApply} />);
+  fireEvent.click(screen.getByRole('button', { name: /Smart fill/ }));
+  fireEvent.click(screen.getByRole('button', { name: 'Suggest details' }));
+  await screen.findByText('Review suggestions');
+  expect(within(screen.getByText('Processor').closest('label')).getByRole('checkbox')).toBeChecked();
+  const warranty = within(screen.getByText('Warranty period').closest('label')).getByRole('checkbox');
+  expect(warranty).not.toBeChecked();
+  expect(screen.getByText('Confirm coverage for this item.')).toBeInTheDocument();
+  fireEvent.click(warranty);
+  fireEvent.click(screen.getByRole('button', { name: 'Apply 2 selected details' }));
+  expect(onApply).toHaveBeenCalledWith(expect.arrayContaining([expect.objectContaining({ key: 'attributeValues.processor' }), expect.objectContaining({ key: 'attributeValues.warranty' })]));
+});
+
+test('technology product form exposes relevant specifications without fashion fields', async () => {
+  const configuration = { industry: 'mobile', features: { sizing: false }, attributes: [
+    { key: 'brand', label: 'Brand', type: 'text', required: true }, { key: 'model', label: 'Model', type: 'text', required: true },
+  ], categoryDefinitions: [
+    { key: 'smartphones', attributes: [{ key: 'ram', label: 'RAM', unit: 'GB', type: 'dropdown', options: ['6', '8'] }, { key: 'bluetooth', label: 'Bluetooth', type: 'text' }] },
+    { key: 'chargers', attributes: [{ key: 'output_power', label: 'Output power', unit: 'W', type: 'measurement', required: true }] },
+  ] };
+  api.get.mockImplementation(async path => path === '/catalog-configuration' ? configuration : path.includes('/categories') ? [
+    { _id: 'phones', name: 'Smartphones', definitionKey: 'smartphones' }, { _id: 'chargers', name: 'Chargers', definitionKey: 'chargers' },
+  ] : []);
+  render(<ProductForm />);
+  await screen.findByPlaceholderText('Apple iPhone 15 128 GB or Samsung 25W USB-C Charger');
+  await act(async () => { fireEvent.change(screen.getByRole('combobox', { name: /^Category/ }), { target: { value: 'phones' } }); });
+  expect(screen.getByLabelText(/^RAM/)).toBeInTheDocument();
+  expect(screen.queryByLabelText('Bluetooth')).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'Show all specifications' }));
+  expect(screen.getByLabelText('Bluetooth')).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: /Advanced/ })).toHaveAttribute('aria-pressed', 'false');
+  await act(async () => { fireEvent.change(screen.getByRole('combobox', { name: /^Category/ }), { target: { value: 'chargers' } }); });
+  expect(screen.getByLabelText(/^Output power/)).toBeInTheDocument();
+  expect(screen.queryByLabelText(/^RAM/)).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: /Advanced/ }));
+  expect(screen.queryByLabelText('Fabric')).not.toBeInTheDocument();
+  expect(screen.queryByLabelText('Occasions (comma-separated)')).not.toBeInTheDocument();
+  expect(screen.queryByText('No size chart required')).not.toBeInTheDocument();
+  expect(screen.getByRole('heading', { name: 'Compatible accessories and related products' })).toBeInTheDocument();
+  expect(screen.getAllByLabelText(/^Brand/)).toHaveLength(1);
+});
 
 test.each(['/admin', '/seller'])('Smart Fill uses %s permissions and saves reviewed listing fields through the normal product endpoint', async (prefix) => {
   const configuration = { features: { sizing: false }, attributes: [{ key: 'material', label: 'Material', required: true }] };
@@ -182,7 +232,24 @@ test('category editor creates a normalized child category from the list-first dr
   fireEvent.change(screen.getByLabelText('Product field template'), { target: { value: 'sarees' } });
   fireEvent.click(screen.getByRole('button', { name: 'Add Category' }));
   await waitFor(() => expect(api.post).toHaveBeenCalledWith('/admin/categories', expect.objectContaining({ name: 'Festive Sarees', slug: 'festive-sarees', parent: 'parent', definitionKey: 'sarees' })));
-  expect(await screen.findByRole('status')).toHaveTextContent('Category added successfully');
+  expect((await screen.findByText('Category added successfully.')).closest('.app-toast-region')).toHaveAttribute('data-mode', 'admin');
+});
+
+test('category save shows bottom-left progress and a top-right success toast', async () => {
+  const item = { ...category, slug: 'sarees', description: '', isArchived: false };
+  api.get.mockImplementation(async path => path === `/admin/categories/${item._id}` ? item : path === '/catalog-configuration' ? { categoryDefinitions: [] } : [item]);
+  let finishSave;
+  api.put.mockImplementation(() => new Promise(resolve => { finishSave = resolve; }));
+  render(<Categories />);
+  fireEvent.click(await screen.findByRole('button', { name: 'Edit' }));
+  fireEvent.change(await screen.findByLabelText('Name'), { target: { value: 'Wedding Sarees' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Update Category' }));
+  expect(await screen.findByRole('status', { name: 'Saving category' })).toHaveClass('category-process-indicator');
+  await act(async () => finishSave({ ...item, name: 'Wedding Sarees' }));
+  const success = await screen.findByText('Category changes saved.');
+  expect(success.closest('.app-toast-region')).toHaveAttribute('data-mode', 'admin');
+  expect(document.querySelector('.category-page-message.is-success')).toBeNull();
+  await waitFor(() => expect(screen.queryByRole('status', { name: 'Saving category' })).not.toBeInTheDocument());
 });
 test('coupon pause preserves redeemed history and archive keeps it restorable', async () => {
   const coupon = { _id: 'coupon', code: 'FESTIVE', discountType: 'percentage', discountValue: 10, isActive: true, usedCount: 2 };

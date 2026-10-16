@@ -57,13 +57,13 @@ export default function DraftPhotoUploadPanel({ categories, uploading, onUpload,
   };
 
   return <section className="admin-card draft-upload-panel" aria-label="Create drafts from photos">
-    <div className="draft-panel-heading"><div><p>FAST CATALOG SETUP</p><h2>Create drafts from product photos</h2><span>Photos stay editable before anything is published.</span></div><button type="button" disabled={uploading} onClick={onClose} aria-label="Close upload panel"><X /></button></div>
+    <div className="draft-panel-heading"><h2>Create drafts from photos</h2><button type="button" disabled={uploading} onClick={onClose} aria-label="Close upload panel"><X /></button></div>
     <div className="draft-upload-options">
       {[
-        ['single', 'One product', 'All selected photos belong to one product.'],
-        ['grouped', 'Group by product', 'Assign 4 + 3 + 2 photos to three separate drafts.'],
-        ['separate', 'One per photo', 'Each selected photo becomes its own draft.'],
-      ].map(([mode, title, note]) => <label key={mode} className={groupMode === mode ? 'is-selected' : ''}><input type="radio" disabled={uploading} name="draft-group" checked={groupMode === mode} onChange={() => setGroupMode(mode)} /><strong>{title}</strong><span>{note}</span></label>)}
+        ['single', 'One product'],
+        ['grouped', 'Group by product'],
+        ['separate', 'One per photo'],
+      ].map(([mode, title]) => <label key={mode} className={groupMode === mode ? 'is-selected' : ''}><input type="radio" disabled={uploading} name="draft-group" checked={groupMode === mode} onChange={() => setGroupMode(mode)} /><strong>{title}</strong></label>)}
     </div>
     <label className="draft-dropzone"><Upload size={24} /><strong>Choose up to 30 product photos</strong><span>JPG, PNG or WEBP, up to 20MB each. Photos are compressed before storage.</span><input type="file" disabled={uploading} multiple accept="image/jpeg,image/jpg,image/png,image/webp" onChange={event => { add(event.target.files); event.target.value = ''; }} /></label>
     {!!previews.length && <div className="draft-upload-previews">{previews.map(({ file, url }, index) => <figure key={`${file.name}-${file.size}-${index}`}>
@@ -75,7 +75,7 @@ export default function DraftPhotoUploadPanel({ categories, uploading, onUpload,
       {groupMode !== 'separate' && groups.find(group => group.id === assignments[index])?.indexes[0] === index && <b>Cover</b>}
     </figure>)}</div>}
     {!!files.length && groupMode !== 'separate' && <div className="draft-upload-groups">{groups.map((group, index) => <div className="draft-upload-group" key={group.id}>
-      <div className="draft-upload-group__heading"><img src={previews[group.indexes[0]]?.url} alt="" /><div><strong>Product {index + 1}</strong><span>{group.indexes.length} photo{group.indexes.length === 1 ? '' : 's'} · first photo is the cover</span></div></div>
+      <div className="draft-upload-group__heading"><img src={previews[group.indexes[0]]?.url} alt="" /><div><strong>Product {index + 1}</strong><span>{group.indexes.length} photo{group.indexes.length === 1 ? '' : 's'}</span></div></div>
       <div className="draft-upload-group__fields">
         <label>Category <Select value={groupDetails[group.id]?.category || ''} disabled={uploading} onChange={event => updateDetail(group.id, 'category', event.target.value)}><option value="">Choose category</option>{categories.map(category => <option key={category._id} value={category._id}>{category.name}</option>)}</Select></label>
         <label>Exact phone model <TextInput value={groupDetails[group.id]?.model || ''} maxLength={120} disabled={uploading} placeholder="e.g. Apple iPhone 17" onChange={event => updateDetail(group.id, 'model', event.target.value)} /></label>
@@ -83,8 +83,8 @@ export default function DraftPhotoUploadPanel({ categories, uploading, onUpload,
         <label>Storage (GB) <TextInput value={groupDetails[group.id]?.storage || ''} inputMode="numeric" maxLength={4} disabled={uploading} placeholder="e.g. 256" onChange={event => updateDetail(group.id, 'storage', event.target.value)} /></label>
       </div>
     </div>)}</div>}
-    {!!files.length && <p className="draft-upload-hint">For online phone specifications, choose the phone category and enter the exact model. RAM and storage help Gemini verify the right variant. Smart Fill opens on the first draft; launch it for the other groups from New drafts. Review sources before saving.</p>}
+    {!!files.length && groupMode !== 'separate' && <p className="draft-upload-hint">Phone specs: enter the exact model and storage.{groups.length > 1 && ' After upload, fill shared and product details together.'}</p>}
     {error && <p role="alert" className="draft-alert is-error">{error}</p>}
-    <div className="draft-upload-actions"><span>{files.length ? `${files.length} photos → ${groups.length} draft${groups.length === 1 ? '' : 's'}` : 'No photos selected'}</span><button type="button" className="admin-btn-ghost" disabled={!files.length || uploading} onClick={() => { setFiles([]); setPhotoGroups([]); setGroupDetails({}); }}>Clear</button><button type="button" className="admin-btn-ghost" disabled={!files.length || uploading} onClick={() => submit(false)}>Create drafts only</button><button type="button" className="admin-btn" disabled={!files.length || uploading} onClick={() => submit(true)}>{uploading ? 'Creating drafts...' : 'Create & start Smart Fill'}</button></div>
+    <div className="draft-upload-actions"><span>{files.length ? `${files.length} photos → ${groups.length} draft${groups.length === 1 ? '' : 's'}` : 'No photos selected'}</span><button type="button" className="admin-btn-ghost" disabled={!files.length || uploading} onClick={() => { setFiles([]); setPhotoGroups([]); setGroupDetails({}); }}>Clear</button><button type="button" className="admin-btn-ghost" disabled={!files.length || uploading} onClick={() => submit(false)}>Create drafts only</button><button type="button" className="admin-btn" disabled={!files.length || uploading} onClick={() => submit(true)}>{uploading ? 'Creating drafts...' : groups.length > 1 ? 'Create & fill all drafts' : 'Create & start Smart Fill'}</button></div>
   </section>;
 }

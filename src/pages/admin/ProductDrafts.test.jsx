@@ -1,5 +1,5 @@
 import '@testing-library/jest-dom';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import ProductDrafts from './ProductDrafts';
 import api from '../../services/api';
 
@@ -67,6 +67,17 @@ test('opens a focused editor, applies reviewed Smart Fill values, and saves with
   })));
 });
 
+test('mobile-store draft content uses electronics wording and hides fashion fields', async () => {
+  api.get.mockResolvedValue({ industry: 'mobile', features: { sizing: false }, attributes: [] });
+  render(<ProductDrafts />);
+  fireEvent.click((await screen.findAllByRole('button', { name: 'Review' }))[0]);
+  fireEvent.click(screen.getByRole('button', { name: 'Content & SEO' }));
+  expect(screen.getByLabelText('Use and care instructions')).toBeInTheDocument();
+  expect(screen.queryByLabelText('Fabric / material')).not.toBeInTheDocument();
+  expect(screen.queryByLabelText('Occasion')).not.toBeInTheDocument();
+  await act(async () => { await Promise.resolve(); });
+});
+
 test('creating photo drafts can open the first draft and run Smart Fill immediately', async () => {
   URL.createObjectURL = jest.fn(() => 'blob:photo');
   URL.revokeObjectURL = jest.fn();
@@ -112,6 +123,69 @@ test('bulk selection publishes through the structured batch endpoint and keeps f
   expect(boxes[1]).toBeChecked();
 });
 
+test('fills shared and per-product draft details in one bulk editor without mixing photos', async () => {
+  render(<ProductDrafts />);
+  const boxes = await screen.findAllByRole('checkbox', { name: /Select .*saree/ });
+  fireEvent.click(boxes[0]); fireEvent.click(boxes[1]);
+  fireEvent.click(screen.getByRole('button', { name: 'Fill details together' }));
+  const dialog = screen.getByRole('dialog', { name: 'Fill 2 drafts together' });
+  const common = within(dialog).getByRole('region', { name: 'Details for all drafts' });
+  fireEvent.change(within(common).getByLabelText('Brand'), { target: { value: 'Apple' } });
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Apply to all rows' }));
+  const first = within(dialog).getByRole('region', { name: 'Product 1' });
+  const second = within(dialog).getByRole('region', { name: 'Product 2' });
+  fireEvent.change(within(first).getByLabelText('Selling price'), { target: { value: '950' } });
+  fireEvent.change(within(second).getByLabelText('Selling price'), { target: { value: '850' } });
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Save 2 drafts' }));
+  await waitFor(() => expect(mockSave).toHaveBeenCalledTimes(2));
+  expect(mockSave).toHaveBeenCalledWith(expect.objectContaining({ id: 'draft-a', body: expect.objectContaining({ brand: 'Apple', sellingPrice: 950, images: draft.images, baseRevision: 2, saveMode: 'manual' }) }));
+  expect(mockSave).toHaveBeenCalledWith(expect.objectContaining({ id: 'draft-b', body: expect.objectContaining({ brand: 'Apple', sellingPrice: 850, images: draft.images, baseRevision: 2, saveMode: 'manual' }) }));
+});
+
+test('bulk editor exposes required category attributes and keeps failed draft rows for retry', async () => {
+  api.get.mockResolvedValue({ features: { sizing: false }, attributes: [
+    { key: 'condition', label: 'Condition', type: 'dropdown', required: true, options: ['New', 'Used'] },
+    { key: 'storage', label: 'Storage', type: 'text', required: true },
+  ] });
+  mockSave.mockImplementation(({ id, body }) => ({ unwrap: async () => {
+    if (id === 'draft-b' && mockSave.mock.calls.filter(([args]) => args.id === 'draft-b').length === 1) {
+      throw { data: { code: 'DRAFT_STALE', message: 'Draft changed in another tab.' } };
+    }
+    return { success: true, data: { ...body, _id: id, revision: 3 } };
+  } }));
+  render(<ProductDrafts />);
+  const boxes = await screen.findAllByRole('checkbox', { name: /Select .*saree/ });
+  fireEvent.click(boxes[0]); fireEvent.click(boxes[1]);
+  fireEvent.click(screen.getByRole('button', { name: 'Fill details together' }));
+  const dialog = screen.getByRole('dialog', { name: 'Fill 2 drafts together' });
+  const rows = [within(dialog).getByRole('region', { name: 'Product 1' }), within(dialog).getByRole('region', { name: 'Product 2' })];
+  rows.forEach((row, index) => {
+    fireEvent.change(within(row).getByLabelText('Condition'), { target: { value: 'Used' } });
+    fireEvent.change(within(row).getByLabelText('Storage'), { target: { value: index ? '128 GB' : '256 GB' } });
+  });
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Save 2 drafts' }));
+  await waitFor(() => expect(within(dialog).getByRole('status')).toHaveTextContent('1 of 2 drafts saved'));
+  expect(within(dialog).getByRole('button', { name: 'Save 1 draft' })).toBeEnabled();
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Save 1 draft' }));
+  await waitFor(() => expect(within(dialog).getByRole('status')).toHaveTextContent('1 of 1 draft saved'));
+  expect(mockSave).toHaveBeenCalledWith(expect.objectContaining({ id: 'draft-b', body: expect.objectContaining({ attributeValues: expect.objectContaining({ condition: 'Used', storage: '128 GB' }) }) }));
+});
+
+test('multiple photo drafts open the combined editor immediately after upload', async () => {
+  URL.createObjectURL = jest.fn(() => 'blob:photo');
+  URL.revokeObjectURL = jest.fn();
+  const created = [draft, { ...draft, _id: 'draft-b', name: 'Green saree' }];
+  mockUpload.mockImplementation(() => ({ unwrap: async () => ({ success: true, data: { drafts: created } }) }));
+  render(<ProductDrafts />);
+  fireEvent.click(screen.getByRole('button', { name: 'Create from photos' }));
+  fireEvent.click(screen.getByRole('radio', { name: 'One per photo' }));
+  fireEvent.change(screen.getByLabelText(/Choose up to 30 product photos/), { target: { files: [
+    new File(['one'], 'one.jpg', { type: 'image/jpeg' }), new File(['two'], 'two.jpg', { type: 'image/jpeg' }),
+  ] } });
+  fireEvent.click(screen.getByRole('button', { name: 'Create & fill all drafts' }));
+  expect(await screen.findByRole('dialog', { name: 'Fill 2 drafts together' })).toBeInTheDocument();
+});
+
 test('archives an active draft instead of deleting it directly', async () => {
   render(<ProductDrafts />);
   const archiveButtons = await screen.findAllByRole('button', { name: 'Archive draft' });
@@ -155,9 +229,9 @@ test('load errors keep retry available', async () => {
 test('draft queue count excludes published records and exposes separate published history', async () => {
   mockQuery.data.meta.summary = { draft: 2, published: 4, archived: 0 };
   render(<ProductDrafts />);
-  expect(await screen.findByRole('button', { name: 'Draft queue 2' })).toBeInTheDocument();
-  fireEvent.click(screen.getByRole('button', { name: 'Published history 4' }));
-  expect(screen.getByRole('button', { name: 'Published history 4' })).toHaveClass('is-active');
+  expect(await screen.findByRole('button', { name: 'Drafts 2' })).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'Published 4' }));
+  expect(screen.getByRole('button', { name: 'Published 4' })).toHaveClass('is-active');
 });
 
 test('published draft cleanup explains product safety and requires typed confirmation', async () => {

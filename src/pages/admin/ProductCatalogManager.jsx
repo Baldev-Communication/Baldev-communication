@@ -19,6 +19,7 @@ import ProductCaptionModal from '../../components/admin/ProductCaptionModal';
 import StockInput from '../../components/admin/StockInput';
 import PageState from '../../components/ui/PageState';
 import '../../components/admin/AdminShell.css';
+import './ProductCatalogManager.css';
 
 const DEFAULT_SUMMARY = { total: 0, active: 0, low: 0, out: 0, archived: 0, retailValue: 0, costValue: 0 };
 
@@ -187,11 +188,11 @@ export default function ProductCatalogManager({ route = '/admin/products', apiPr
   const hasCatalogFilters = Boolean(query.trim() || category || status || stock || completeness || archive);
 
   return (
-    <section className="space-y-5">
-      <PageHeader kicker={isAdmin ? 'Admin' : 'Seller'} title="Products" note="Manage listings, pricing, availability and storefront visibility from one catalog.">
+    <section className="product-catalog-page space-y-3">
+      <PageHeader kicker={isAdmin ? 'Admin' : 'Seller'} title="Products">
         <button type="button" onClick={exportCatalog} disabled={actionBusy === 'export'} className="admin-btn-ghost disabled:opacity-50"><Download className="h-4 w-4" />{actionBusy === 'export' ? 'Exporting...' : selectedIds.length ? `Export ${selectedIds.length}` : 'Export CSV'}</button>
         {isAdmin && <details className="relative">
-          <summary className="admin-btn-ghost cursor-pointer list-none"><Plus className="h-4 w-4" />More ways to add <ChevronDown className="h-4 w-4" /></summary>
+          <summary className="admin-btn-ghost cursor-pointer list-none"><Plus className="h-4 w-4" />More add options <ChevronDown className="h-4 w-4" /></summary>
           <div className="absolute right-0 z-40 mt-2 grid w-64 gap-1 rounded-2xl border border-theme-border bg-white p-2 shadow-xl">
             <AddLink href="/admin/products/quick-add" icon={Sparkles} title="Quick Add from photos" note="Create a product with fewer fields" />
             <AddLink href="/admin/social-import" icon={Download} title="Import social link" note="Instagram or Facebook post" />
@@ -213,12 +214,12 @@ export default function ProductCatalogManager({ route = '/admin/products', apiPr
         <KpiTile icon={Banknote} tone="gold" label="Retail stock value" value={formatCurrency(summary.retailValue)} note="Selling price × available stock" />
       </div>
 
-      <div className="admin-card p-4 lg:p-5">
+      <div className="admin-card p-3 lg:p-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <div><h2 className="text-base font-black">Find products</h2><p className="mt-1 text-xs font-semibold text-slate-500">Search, filter and save time on daily catalog work.</p></div>
-          <button type="button" onClick={clearFilters} className="admin-btn-ghost"><X className="h-4 w-4" />Clear filters</button>
+          <h2 className="text-base font-black">Filters</h2>
+          {hasCatalogFilters && <button type="button" onClick={clearFilters} className="admin-btn-ghost"><X className="h-4 w-4" />Clear filters</button>}
         </div>
-        <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-[minmax(260px,1.5fr)_repeat(5,minmax(135px,0.8fr))]">
+        <div className="mt-3 grid gap-2 md:grid-cols-2 xl:grid-cols-[minmax(260px,1.5fr)_repeat(5,minmax(135px,0.8fr))]">
           <label className="sc-field-shell flex h-11 items-center gap-2 rounded-full border border-theme-border bg-white px-4"><PackageSearch className="h-4 w-4 text-slate-400" /><input aria-label="Search products" value={query} onChange={(event) => { setQuery(event.target.value); setPage(1); }} placeholder="Name, SKU, fabric or details" className="w-full bg-transparent text-sm outline-none" /></label>
           <Select label="Category filter" value={category} onChange={changeFilter(setCategory)} options={[['', 'All categories'], ...categories.map((item) => [item._id, item.name])]} />
           <Select label="Status filter" value={status} onChange={changeFilter(setStatus)} options={[['', 'All visibility'], ['active', 'Active'], ['inactive', 'Inactive']]} />
@@ -252,7 +253,7 @@ export default function ProductCatalogManager({ route = '/admin/products', apiPr
               <tbody>{products.map((product) => <DesktopRow key={product._id} product={product} inventoryPath={`${prefix}/inventory`} selected={selectedIds.includes(product._id)} busy={actionBusy} onSelect={toggleSelected} onEdit={openEdit} onStatus={setVisibility} onStock={updateStock} onPoster={setPosterProduct} onCaption={setCaptionProduct} onOut={requestOutOfStock} onArchive={requestArchive} onRestore={restore} onDuplicate={duplicate} onDelete={setDeleteTarget} />)}</tbody>
             </table>
           </div> : <div className="divide-y divide-[#f0e5dc]">{products.map((product) => <MobileProductCard key={product._id} product={product} selected={selectedIds.includes(product._id)} busy={actionBusy} onSelect={toggleSelected} onEdit={openEdit} onStatus={setVisibility} onOut={requestOutOfStock} onArchive={requestArchive} onRestore={restore} onDuplicate={duplicate} onDelete={setDeleteTarget} />)}</div>}
-        </> : <div className="grid min-h-[280px] place-items-center p-8 text-center"><div><span className="mx-auto grid h-16 w-16 place-items-center rounded-3xl bg-wine/10 text-wine">{archive === 'only' ? <Archive /> : <PackageSearch />}</span><h3 className="mt-4 text-xl font-black">{archive === 'only' ? 'No archived products' : hasCatalogFilters ? 'No products match these filters' : 'No products yet'}</h3><p className="mt-2 text-sm text-slate-500">{archive === 'only' ? 'Archived products will stay recoverable here.' : hasCatalogFilters ? 'Clear filters to see the full catalog.' : 'Add your first product to start building the catalog.'}</p>{archive !== 'only' && hasCatalogFilters && <button type="button" onClick={clearFilters} className="admin-btn-ghost mt-5">Clear filters</button>}</div></div>}
+        </> : <div className="grid min-h-[190px] place-items-center p-5 text-center"><div><span className="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-wine/10 text-wine">{archive === 'only' ? <Archive /> : <PackageSearch />}</span><h3 className="mt-3 text-lg font-black">{archive === 'only' ? 'No archived products' : hasCatalogFilters ? 'No products match these filters' : 'No products yet'}</h3><p className="mt-1 text-sm text-slate-500">{archive === 'only' ? 'Archived products are recoverable here.' : hasCatalogFilters ? 'Clear filters to see all products.' : 'Add your first product.'}</p>{archive !== 'only' && hasCatalogFilters && <button type="button" onClick={clearFilters} className="admin-btn-ghost mt-3">Clear filters</button>}</div></div>}
       </div>
 
       <div className="admin-card flex flex-wrap items-center justify-between gap-3 px-4 py-3 text-sm">
@@ -264,10 +265,12 @@ export default function ProductCatalogManager({ route = '/admin/products', apiPr
       {editor && <div className="fixed inset-0 z-[90] bg-black/45 p-2 sm:p-4 lg:p-6"><div className="mx-auto flex h-full w-full max-w-[1180px] flex-col overflow-hidden rounded-[24px] bg-[#fbf7f3] shadow-2xl"><div className="flex items-center justify-between border-b border-theme-border bg-white px-4 py-3 lg:px-6"><div><p className="text-[11px] font-black uppercase tracking-[0.18em] text-wine/60">Catalog editor</p><h2 className="text-xl font-black">{editor.mode === 'Add' ? 'Add product' : 'Edit product'}</h2></div><button type="button" onClick={closeEditor} className="grid h-10 w-10 place-items-center rounded-full border border-theme-border" aria-label="Close product editor"><X className="h-5 w-5" /></button></div><div className="min-h-0 flex-1 overflow-y-auto p-3 sm:p-4 lg:p-6"><ProductForm mode={editor.mode} productId={editor.id} apiPrefix={prefix} uploadPrefix={`${prefix}/uploads`} cancelPath={`${prefix}/products`} onCancel={closeEditor} onSaved={() => { closeEditor(); reload(); }} /></div></div></div>}
 
       <ConfirmModal open={!!confirmTarget} title={confirmTarget?.title} message={confirmTarget?.message} confirmLabel={confirmTarget?.label} onClose={() => setConfirmTarget(null)} onConfirm={async () => { await confirmTarget?.run(); setConfirmTarget(null); }} />
-      {deleteTarget && <ProductDeleteDialog product={deleteTarget} productsPath={productsPath} onClose={() => setDeleteTarget(null)} onArchived={reload} onDeleted={id => {
+      {deleteTarget && <ProductDeleteDialog product={deleteTarget} productsPath={productsPath} onClose={() => setDeleteTarget(null)} onArchived={reload} onDeleted={(id, mediaCleanup) => {
         setDeleteTarget(null); setSelectedIds(current => current.filter(item => item !== id));
         setProducts(current => current.filter(item => item._id !== id));
-        setMessage({ tone: 'success', text: 'Product permanently deleted. Uploaded files and audit history were retained.' }); reload();
+        setMessage({ tone: mediaCleanup?.failed?.length ? 'error' : 'success', text: mediaCleanup?.failed?.length
+          ? `Product deleted, but ${mediaCleanup.failed.length} upload(s) could not be removed from storage. Check server logs.`
+          : 'Product permanently deleted. Unused uploads were removed; shared images were preserved.' }); reload();
       }} />}
       <ProductPosterModal open={!!posterProduct} product={posterProduct} settings={settings} onClose={() => setPosterProduct(null)} />
       <ProductCaptionModal open={!!captionProduct} product={captionProduct} settings={settings} onClose={() => setCaptionProduct(null)} />
@@ -292,17 +295,16 @@ function DesktopRow({ product, inventoryPath, selected, busy, onSelect, onEdit, 
 function MobileProductCard({ product, selected, busy, onSelect, onEdit, onStatus, onOut, onArchive, onRestore, onDuplicate, onDelete }) {
   const state = productState(product);
   const score = completenessScore(product);
-  return <article className={`p-4 ${selected ? 'bg-[#fff4f6]' : 'bg-white'}`}>
-    <div className="flex gap-3"><button type="button" onClick={() => onSelect(product._id)} className={`mt-1 grid h-6 w-6 shrink-0 place-items-center rounded-md border ${selected ? 'border-wine bg-wine text-white' : 'border-[#d9cec3]'}`} aria-label={`Select ${product.name}`}>{selected && <Check className="h-3.5 w-3.5" />}</button><div className="h-20 w-16 shrink-0 overflow-hidden rounded-xl bg-[#fbf2eb]"><img src={getPrimaryImageUrl(product.images) || '/uploads/placeholder.jpg'} alt="" className="h-full w-full object-cover" /></div><div className="min-w-0 flex-1"><h3 className="truncate text-sm font-black" title={product.name}>{product.name}</h3><p className="mt-1 truncate text-xs text-slate-500">{product.sku || 'No SKU'} · {product.category?.name || 'Unassigned'}</p><div className="mt-2 flex flex-wrap items-center gap-2"><strong>Rs. {formatNumber(product.price)}</strong><StatusBadge value={state.label} /><span className={`rounded-full px-2 py-1 text-[10px] font-black ${score === 100 ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>{score}% complete</span></div><p className="mt-2 text-xs font-bold text-slate-500">{Number(product.stock || 0)} units · Alert at {product.lowStockAlert ?? 5}</p></div></div>
-    <div className="mt-3 grid grid-cols-2 gap-2"><button type="button" onClick={() => onEdit(product)} className="admin-btn"><PencilLine className="h-4 w-4" />Edit</button><a href={`/product?id=${encodeURIComponent(product._id)}`} target="_blank" rel="noreferrer" className="admin-btn-ghost"><Eye className="h-4 w-4" />Preview</a></div>
+  return <article className={`p-3 ${selected ? 'bg-[#fff4f6]' : 'bg-white'}`}>
+    <div className="flex gap-3"><button type="button" onClick={() => onSelect(product._id)} className={`mt-1 grid h-6 w-6 shrink-0 place-items-center rounded-md border ${selected ? 'border-wine bg-wine text-white' : 'border-[#d9cec3]'}`} aria-label={`Select ${product.name}`}>{selected && <Check className="h-3.5 w-3.5" />}</button><div className="h-16 w-14 shrink-0 overflow-hidden rounded-xl bg-[#fbf2eb]"><img src={getPrimaryImageUrl(product.images) || '/uploads/placeholder.jpg'} alt="" className="h-full w-full object-cover" /></div><div className="min-w-0 flex-1"><h3 className="truncate text-sm font-black" title={product.name}>{product.name}</h3><p className="mt-1 truncate text-xs text-slate-500">{product.sku || 'No SKU'} · {product.category?.name || 'Unassigned'}</p><div className="mt-2 flex flex-wrap items-center gap-2"><strong>Rs. {formatNumber(product.price)}</strong><StatusBadge value={state.label} /><span className={`rounded-full px-2 py-1 text-[10px] font-black ${score === 100 ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>{score}% complete</span></div><p className="mt-1 text-xs font-bold text-slate-500">{Number(product.stock || 0)} units{Number(product.stock || 0) <= Number(product.lowStockAlert ?? 5) && ` · Alert at ${product.lowStockAlert ?? 5}`}</p></div></div>
+    <div className="mt-2 grid grid-cols-2 gap-2"><button type="button" onClick={() => onEdit(product)} className="admin-btn"><PencilLine className="h-4 w-4" />Edit</button><a href={`/product?id=${encodeURIComponent(product._id)}`} target="_blank" rel="noreferrer" className="admin-btn-ghost"><Eye className="h-4 w-4" />Preview</a></div>
     <div className="mt-2 flex flex-wrap gap-2">{product.isArchived ? <button type="button" disabled={!!busy} onClick={() => onRestore(product)} className="admin-table-action-link"><RotateCcw className="mr-1 h-3.5 w-3.5" />Restore</button> : <><button type="button" disabled={!!busy} onClick={() => onStatus(product)} className="admin-table-action-link">{product.isActive ? 'Hide' : 'Make active'}</button><button type="button" disabled={!!busy} onClick={() => onDuplicate(product)} className="admin-table-action-link">Duplicate</button>{Number(product.stock || 0) > 0 && <button type="button" disabled={!!busy} onClick={() => onOut(product)} className="admin-table-action-link">Out of stock</button>}<button type="button" disabled={!!busy} onClick={() => onArchive(product)} className="admin-table-action-link is-danger">Archive</button></>}</div>
-    <button type="button" disabled={!!busy} onClick={() => onDelete(product)} className="admin-table-action-link is-danger mt-2 inline-flex min-h-11 items-center gap-1" aria-label={`Delete ${product.name} permanently`}><Trash2 className="h-3.5 w-3.5" />Delete permanently</button>
+    <button type="button" disabled={!!busy} onClick={() => onDelete(product)} className="admin-table-action-link is-danger mt-2 inline-flex min-h-9 items-center gap-1" aria-label={`Delete ${product.name} permanently`}><Trash2 className="h-3.5 w-3.5" />Delete permanently</button>
   </article>;
 }
 
 function ProductIdentity({ product, score }) {
-  const description = product.shortDescription || product.description || '';
-  return <div className="flex items-center gap-3"><div className="h-14 w-14 shrink-0 overflow-hidden rounded-xl bg-[#fbf2eb]"><img src={getPrimaryImageUrl(product.images) || '/uploads/placeholder.jpg'} alt="" className="h-full w-full object-cover" /></div><div className="min-w-0"><p className="truncate text-sm font-black" title={product.name}>{product.name}</p>{description && <p className="mt-1 truncate text-xs text-slate-500" title={description}>{description}</p>}<div className="mt-1.5 flex flex-wrap gap-1">{product.isNewArrival && <Tag label="New" />}{product.isBestSeller && <Tag label="Best seller" />}{product.isFeatured && <Tag label="Featured" />}<span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${score === 100 ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`} title="Product information completeness">{score}%</span></div></div></div>;
+  return <div className="flex items-center gap-3"><div className="h-14 w-14 shrink-0 overflow-hidden rounded-xl bg-[#fbf2eb]"><img src={getPrimaryImageUrl(product.images) || '/uploads/placeholder.jpg'} alt="" className="h-full w-full object-cover" /></div><div className="min-w-0"><p className="truncate text-sm font-black" title={product.name}>{product.name}</p><div className="mt-1.5 flex flex-wrap gap-1">{product.isNewArrival && <Tag label="New" />}{product.isBestSeller && <Tag label="Best seller" />}{product.isFeatured && <Tag label="Featured" />}<span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${score === 100 ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`} title="Product information completeness">{score}%</span></div></div></div>;
 }
 
 function ProductActions({ product, busy, onEdit, onPoster, onCaption, onOut, onArchive, onRestore, onDuplicate }) {
@@ -313,7 +315,7 @@ function Action({ icon: Icon, children, onClick, danger }) { return <button type
 function AddLink({ href, icon: Icon, title, note }) { return <a href={href} className="flex items-center gap-3 rounded-xl p-3 hover:bg-[#fff7f2]"><span className="grid h-9 w-9 place-items-center rounded-xl bg-wine/10 text-wine"><Icon className="h-4 w-4" /></span><span><strong className="block text-xs">{title}</strong><small className="text-[10px] text-slate-500">{note}</small></span></a>; }
 function Tag({ label }) { return <span className="rounded-full bg-[#fff4f7] px-2 py-0.5 text-[10px] font-bold text-wine">{label}</span>; }
 function Select({ label, value, onChange, options }) { return <UiSelect aria-label={label} value={value} onChange={(event) => onChange(event.target.value)} className="w-full min-w-36 rounded-[16px]">{options.map(([optionValue, text]) => <option key={optionValue} value={optionValue}>{text}</option>)}</UiSelect>; }
-function KpiTile({ icon: Icon, tone, label, value, note, active, onClick }) { const Element = onClick ? 'button' : 'div'; return <Element type={onClick ? 'button' : undefined} onClick={onClick} className={`admin-kpi-tile is-${tone}${active ? ' is-active' : ''}`}><span className="admin-kpi-tile__icon"><Icon className="h-4 w-4" /></span><p className="admin-kpi-tile__value">{value}</p><p className="admin-kpi-tile__label">{label}</p><p className="admin-kpi-tile__note">{note}</p></Element>; }
+function KpiTile({ icon: Icon, tone, label, value, note, active, onClick }) { const Element = onClick ? 'button' : 'div'; return <Element type={onClick ? 'button' : undefined} onClick={onClick} title={note} className={`admin-kpi-tile is-${tone}${active ? ' is-active' : ''}`}><span className="admin-kpi-tile__icon"><Icon className="h-4 w-4" /></span><p className="admin-kpi-tile__value">{value}</p><p className="admin-kpi-tile__label">{label}</p></Element>; }
 function CatalogSkeleton() { return <div className="space-y-3 p-4 lg:p-5">{Array.from({ length: 5 }).map((_, index) => <div key={index} className="h-[84px] animate-pulse rounded-[18px] bg-slate-100/80" />)}</div>; }
 
 function useResponsiveDesktop() {

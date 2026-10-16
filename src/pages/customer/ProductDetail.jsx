@@ -6,6 +6,7 @@ import { ProductVisual } from '../../components/product/ProductCard';
 import ProductDetailPage from '../../components/product/ProductDetailPage';
 import RentalOffer from '../../components/rentals/RentalOffer';
 import CompleteLook from '../../components/product/CompleteLook';
+import { isTechnologyCatalog } from '../../utils/catalogPresentation';
 import PublicReviewCard from '../../components/product/PublicReviewCard';
 import Icon from '../../components/layout/Icon';
 import { useAuth } from '../../context/AuthContext';
@@ -1029,7 +1030,7 @@ export default function ProductDetail({ navigate: navigateRoute, route = '' }) {
         </section>
       </div>
 
-      <CompleteLook key={`${storeSlug}:${productId}`} productId={productId} storeSlug={storeSlug} navigate={navigate} />
+      <CompleteLook key={`${storeSlug}:${productId}`} productId={productId} storeSlug={storeSlug} navigate={navigate} technologyCatalog={isTechnologyCatalog(product)} />
 
       {reviewModalOpen && <LazyBoundary><Suspense fallback={<p role="status" className="p-4 text-sm">Loading review form…</p>}><ReviewModal
         open={reviewModalOpen}
@@ -1118,8 +1119,7 @@ function DetailsCard({ product, returnPolicy }) {
     ...(Array.isArray(product.specifications) ? product.specifications : []).filter((item) => item?.label && item?.value).map((item) => [item.label, [item.value, item.unit].filter(Boolean).join(' ')]),
     ['Category', product.category],
     ['Subcategory', product.subCategory],
-    ['Fabric', product.fabric],
-    ['Occasion', product.occasion],
+    ...(!isTechnologyCatalog(product) ? [['Fabric', product.fabric], ['Occasion', product.occasion]] : []),
     ['Colours', product.colors?.join(', ')],
     ['Available sizes', selectableSizes.join(', ')],
     ['Product code', product.sku],

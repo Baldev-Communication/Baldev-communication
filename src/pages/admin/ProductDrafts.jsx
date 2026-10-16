@@ -10,11 +10,13 @@ import EmptyState from '../../components/admin/EmptyState';
 import Loader from '../../components/admin/Loader';
 import ProductSmartFill from '../../components/admin/ProductSmartFill';
 import DraftPhotoUploadPanel from '../../components/admin/DraftPhotoUploadPanel';
+import DraftBulkEditor from '../../components/admin/DraftBulkEditor';
 import ProductPreviewModal from '../../components/admin/ProductPreviewModal';
 import ImageUploader from '../../components/admin/ImageUploader';
 import VideoUploader from '../../components/admin/VideoUploader';
 import BarcodeScanner from '../../components/admin/BarcodeScanner';
 import { applySmartPatch } from '../../utils/productSmartFill';
+import { isTechnologyCatalog } from '../../utils/catalogPresentation';
 import { draftAttributeDefinitions, firstInvalidDraftAttribute } from '../../utils/draftAttributes';
 import { fetchCategories, fetchSubcategories } from '../../utils/catalogOptions';
 import { normalizeImageUrl } from '../../services/normalize';
@@ -60,6 +62,7 @@ export default function ProductDrafts({ route = '/admin/product-drafts' }) {
   const [pendingDelete, setPendingDelete] = useState(null);
   const [deleteConfirmation, setDeleteConfirmation] = useState('');
   const [bulkCategory, setBulkCategory] = useState('');
+  const [bulkEditDrafts, setBulkEditDrafts] = useState(null);
   const [publishing, setPublishing] = useState(false);
   const [actionBusy, setActionBusy] = useState(false);
   const publishingRef = useRef(false);
@@ -125,15 +128,16 @@ export default function ProductDrafts({ route = '/admin/product-drafts' }) {
       const result = await bulkUploadProductDrafts({ files, groupMode, photoGroups, groupDetails, apiPrefix }).unwrap();
       const created = result?.data?.drafts || [];
       setCreatedDrafts(created); setUploadOpen(false); setPage(1);
-      if (smartFill && created.length) { setSmartFillDraftId(draftId(created[0])); setEditorDraft(created[0]); }
+      if (smartFill && created.length > 1) setBulkEditDrafts(created);
+      else if (smartFill && created.length) { setSmartFillDraftId(draftId(created[0])); setEditorDraft(created[0]); }
       showFeedback(`${created.length} product draft${created.length === 1 ? '' : 's'} created.`, 'success');
     } catch (error) { showFeedback(error.data?.message || error.message || 'Draft upload failed. Your selected photos are kept; retry to continue.', 'error'); }
     finally { uploadingRef.current = false; }
   };
 
-  const saveDraft = useCallback(async (form, { silent = false } = {}) => {
+  const saveDraft = useCallback(async (form, { silent = false, saveMode } = {}) => {
     try {
-      const response = await updateProductDraft({ id: draftId(form), body: { ...normalizeDraftBody(form, categories, structure), saveMode: silent ? 'auto' : 'manual' }, apiPrefix }).unwrap();
+      const response = await updateProductDraft({ id: draftId(form), body: { ...normalizeDraftBody(form, categories, structure), saveMode: saveMode || (silent ? 'auto' : 'manual') }, apiPrefix }).unwrap();
       const saved = response?.data || response;
       setCreatedDrafts(current => current.map(item => draftId(item) === draftId(saved) ? saved : item));
       if (!silent) showFeedback('Draft saved successfully.', 'success');
@@ -171,13 +175,16 @@ export default function ProductDrafts({ route = '/admin/product-drafts' }) {
     deletingRef.current = true;
     setActionBusy(true);
     try {
-      await deleteProductDraft({ id: draftId(pendingDelete), confirm: expected, baseRevision: Number(pendingDelete.revision || 0), apiPrefix }).unwrap();
+      const result = await deleteProductDraft({ id: draftId(pendingDelete), confirm: expected, baseRevision: Number(pendingDelete.revision || 0), apiPrefix }).unwrap();
       setPendingDelete(null); setDeleteConfirmation('');
       if (draftId(editorDraft) === draftId(pendingDelete)) setEditorDraft(null);
       if (draftId(previewDraft) === draftId(pendingDelete)) setPreviewDraft(null);
       setSelected(current => current.filter(id => id !== draftId(pendingDelete)));
       try { localStorage.removeItem(`samira-product-draft:${draftId(pendingDelete)}`); } catch { /* Storage may be unavailable. */ }
-      showFeedback(pendingDelete.publishedProductId ? 'Published draft removed. Its product is unchanged.' : 'Draft deleted permanently.', 'success');
+      showFeedback(result?.mediaCleanup?.failed?.length
+        ? `Draft deleted, but ${result.mediaCleanup.failed.length} upload(s) could not be removed. Check server logs.`
+        : pendingDelete.publishedProductId ? 'Published draft removed. Its product is unchanged.' : 'Draft deleted permanently.',
+      result?.mediaCleanup?.failed?.length ? 'error' : 'success');
     } catch (error) { showFeedback(error.data?.message || error.message || 'Draft could not be deleted.', 'error'); }
     finally { deletingRef.current = false; setActionBusy(false); }
   };
@@ -236,7 +243,7 @@ export default function ProductDrafts({ route = '/admin/product-drafts' }) {
   const allSelected = selectable.length > 0 && selectable.every((id) => selected.includes(id));
 
   return <section className="product-drafts-page">
-    <PageHeader title="Product Drafts" note="Prepare, review and publish catalog products from one focused workspace.">
+    <PageHeader title="Product Drafts">
       <a href={`${apiPrefix}/social-import`} className="admin-btn-ghost">Import social link</a>
       <button type="button" className="admin-btn" onClick={() => setUploadOpen((value) => !value)}><ImagePlus size={16} />Create from photos</button>
     </PageHeader>
@@ -245,14 +252,14 @@ export default function ProductDrafts({ route = '/admin/product-drafts' }) {
     {listError && <div role="alert" className="draft-alert is-error"><span>{listError.data?.message || listError.message || 'Drafts could not be loaded.'}</span><button type="button" onClick={refetch}>Retry</button></div>}
     {message && <p role="status" className="draft-alert">{message}</p>}
     {uploadOpen && <DraftPhotoUploadPanel categories={categories} uploading={uploading} onUpload={onUpload} onClose={() => setUploadOpen(false)} />}
-    {!!createdDrafts.length && <div className="admin-card draft-new-results"><div><strong>New drafts</strong><span>Review each product and its Smart Fill suggestions before publishing.</span></div><div>{createdDrafts.map((created, index) => <button type="button" key={draftId(created) || index} className="admin-btn-ghost" onClick={() => { setEditorDraft(created); setSmartFillDraftId(draftId(created)); }}>Product {index + 1}: {created.name || `${created.images?.length || 1} photo${created.images?.length === 1 ? '' : 's'}`} · Smart Fill</button>)}</div><button type="button" aria-label="Dismiss new drafts" onClick={() => setCreatedDrafts([])}><X size={16} /></button></div>}
+    {!!createdDrafts.length && <div className="admin-card draft-new-results"><strong>New drafts</strong>{createdDrafts.length > 1 && <button type="button" className="admin-btn" onClick={() => setBulkEditDrafts(createdDrafts)}>Fill all together</button>}<div>{createdDrafts.map((created, index) => <button type="button" key={draftId(created) || index} className="admin-btn-ghost" onClick={() => { setEditorDraft(created); setSmartFillDraftId(draftId(created)); }}>Product {index + 1}: {created.name || `${created.images?.length || 1} photo${created.images?.length === 1 ? '' : 's'}`} · Smart Fill</button>)}</div><button type="button" aria-label="Dismiss new drafts" onClick={() => setCreatedDrafts([])}><X size={16} /></button></div>}
 
     <div className="draft-summary-grid" aria-label="Draft summary">
-      <SummaryButton label="Draft queue" value={Number(summary.draft || 0)} active={status === 'active' && !readiness} onClick={() => chooseSummary('', 'active')} />
+      <SummaryButton label="Drafts" value={Number(summary.draft || 0)} active={status === 'active' && !readiness} onClick={() => chooseSummary('', 'active')} />
       <SummaryButton label="Needs details" value={summary.incomplete || 0} tone="danger" active={readiness === 'incomplete'} onClick={() => chooseSummary('incomplete')} />
       <SummaryButton label="Needs review" value={summary.review || 0} active={readiness === 'review'} onClick={() => chooseSummary('review')} />
       <SummaryButton label="Ready" value={summary.ready || 0} tone="success" active={readiness === 'ready'} onClick={() => chooseSummary('ready')} />
-      <SummaryButton label="Published history" value={summary.published || 0} active={status === 'published'} onClick={() => chooseSummary('', 'published')} />
+      <SummaryButton label="Published" value={summary.published || 0} active={status === 'published'} onClick={() => chooseSummary('', 'published')} />
       <SummaryButton label="Archived" value={summary.archived || 0} active={status === 'archived'} onClick={() => chooseSummary('', 'archived')} />
     </div>
 
@@ -261,13 +268,14 @@ export default function ProductDrafts({ route = '/admin/product-drafts' }) {
       <div className="draft-filters"><Filter size={16} /><Select value={sourceType} onChange={(event) => { setSourceType(event.target.value); setPage(1); }} aria-label="Filter by draft source"><option value="">All sources</option><option value="manual">Manual / upload</option><option value="social-import">Social import</option><option value="reel-import">Reel import</option></Select><Select value={category} onChange={(event) => { setCategory(event.target.value); setPage(1); }} aria-label="Filter by category"><option value="">All categories</option>{categories.map((item) => <option key={item._id} value={item._id}>{item.name}</option>)}</Select><Select value={sort} onChange={(event) => { setSort(event.target.value); setPage(1); }} aria-label="Sort drafts"><option value="updated">Recently updated</option><option value="oldest">Oldest first</option><option value="name">Product name</option></Select><button type="button" onClick={refetch} className="admin-btn-ghost" disabled={isFetching}><RefreshCw size={16} className={isFetching ? 'animate-spin' : ''} />Refresh</button></div>
     </div>
 
-    {!!selected.length && <div className="draft-bulk-bar"><strong>{selected.length} selected</strong><div><Select value={bulkCategory} onChange={(event) => setBulkCategory(event.target.value)} aria-label="Category for selected drafts"><option value="">Assign category...</option>{categories.map((item) => <option key={item._id} value={item._id}>{item.name}</option>)}</Select><button type="button" className="admin-btn-ghost" disabled={!bulkCategory || actionBusy} onClick={applyBulkCategory}><Check size={15} />Apply</button></div><button type="button" className="admin-btn-ghost" disabled={actionBusy} onClick={archiveSelected}><Archive size={15} />Archive</button><button type="button" className="admin-btn" disabled={publishing || actionBusy || !structure} onClick={() => publishIds(selected)}><CopyPlus size={16} />{publishing ? 'Publishing...' : 'Publish selected'}</button></div>}
+    {!!selected.length && <div className="draft-bulk-bar"><strong>{selected.length} selected</strong><button type="button" className="admin-btn" disabled={actionBusy || publishing} onClick={() => setBulkEditDrafts(drafts.filter(item => selected.includes(draftId(item))))}><FilePenLine size={16} />Fill details together</button><div><Select value={bulkCategory} onChange={(event) => setBulkCategory(event.target.value)} aria-label="Category for selected drafts"><option value="">Assign category...</option>{categories.map((item) => <option key={item._id} value={item._id}>{item.name}</option>)}</Select><button type="button" className="admin-btn-ghost" disabled={!bulkCategory || actionBusy} onClick={applyBulkCategory}><Check size={15} />Apply</button></div><button type="button" className="admin-btn-ghost" disabled={actionBusy} onClick={archiveSelected}><Archive size={15} />Archive</button><button type="button" className="admin-btn" disabled={publishing || actionBusy || !structure} onClick={() => publishIds(selected)}><CopyPlus size={16} />{publishing ? 'Publishing...' : 'Publish selected'}</button></div>}
 
     <div className="admin-card draft-queue"><div className="draft-queue__heading"><label><input type="checkbox" checked={allSelected} disabled={!selectable.length} onChange={() => setSelected(allSelected ? [] : selectable)} />Select page</label><span>{meta.total || 0} result{Number(meta.total) === 1 ? '' : 's'}</span></div>{isLoading ? <Loader label="Loading product drafts..." /> : !drafts.length ? <EmptyState title={status === 'archived' ? 'No archived drafts' : 'No product drafts found'} note={query ? 'Try a different search or clear the filters.' : 'Create drafts from photos or import a social product link.'} /> : <div className="draft-card-grid">{drafts.map((draft) => <DraftQueueCard key={draftId(draft)} draft={draft} selected={selected.includes(draftId(draft))} busy={actionBusy || publishing} onSelect={() => setSelected((current) => current.includes(draftId(draft)) ? current.filter((id) => id !== draftId(draft)) : [...current, draftId(draft)])} onEdit={() => setEditorDraft(draft)} onPreview={() => setPreviewDraft(draft)} onArchive={() => archiveOne(draft)} onRestore={() => restoreOne(draft)} onDelete={() => { setPendingDelete(draft); setDeleteConfirmation(''); }} />)}</div>}{Number(meta.totalPages || 1) > 1 && <div className="draft-pagination"><button type="button" disabled={page <= 1 || isFetching} onClick={() => setPage((value) => Math.max(1, value - 1))}><ChevronLeft size={16} />Previous</button><span>Page {meta.page || page} of {meta.totalPages}</span><button type="button" disabled={page >= meta.totalPages || isFetching} onClick={() => setPage((value) => value + 1)}>Next<ChevronRight size={16} /></button></div>}</div>
 
     {editorDraft && <DraftEditor key={draftId(editorDraft)} draft={editorDraft} categories={categories} structure={structure} apiPrefix={apiPrefix} autoSmartFill={smartFillDraftId === draftId(editorDraft)} onClose={() => { setEditorDraft(null); setSmartFillDraftId(''); }} onSave={saveDraft} onPublish={publishFromEditor} onPreview={setPreviewDraft} />}
     {previewDraft && <ProductPreviewModal product={normalizeDraftBody(previewDraft, categories, structure)} onClose={() => setPreviewDraft(null)} />}
     {pendingDelete && <ConfirmDelete draft={pendingDelete} value={deleteConfirmation} onChange={setDeleteConfirmation} busy={actionBusy} onCancel={() => { setPendingDelete(null); setDeleteConfirmation(''); }} onDelete={permanentlyDelete} />}
+    {bulkEditDrafts?.length > 0 && <DraftBulkEditor drafts={bulkEditDrafts} categories={categories} structure={structure} onSave={(row) => saveDraft(row, { silent: true, saveMode: 'manual' })} onClose={() => setBulkEditDrafts(null)} />}
   </section>;
 }
 
@@ -282,7 +290,7 @@ function DraftQueueCard({ draft, selected, busy, onSelect, onEdit, onPreview, on
   const statusLabel = published ? 'Published' : archived ? 'Archived' : readiness.state === 'incomplete' ? 'Needs details' : readiness.state === 'ready' ? 'Ready' : 'Review';
   return <article className={`draft-queue-card ${selected ? 'is-selected' : ''}`}>
     <div className="draft-queue-card__image">{image ? <img src={normalizeImageUrl(image)} alt={draft.name || 'Product draft'} loading="lazy" /> : <ImagePlus size={30} />}<span className={`draft-status is-${readiness.state}`}>{statusLabel}</span>{draft.status === 'draft' && <label aria-label={`Select ${draft.name || 'draft'}`}><input type="checkbox" checked={selected} disabled={busy} onChange={onSelect} /></label>}</div>
-    <div className="draft-queue-card__body"><div><p>{sourceLabel(draft.sourceType)}</p><h3 title={draft.name || 'Unnamed product'}>{draft.name || 'Unnamed product'}</h3><span>{categoryName(draft.category) || 'Category not selected'} · Updated {formatRelative(draft.updatedAt)}</span></div><div className="draft-progress"><span><i style={{ width: `${readiness.score || 0}%` }} /></span><b>{readiness.score || 0}% complete</b></div>{(draft.lastPublishError || readiness.issues?.[0]) && <p className="draft-first-issue">{draft.lastPublishError || readiness.issues[0]}</p>}</div>
+    <div className="draft-queue-card__body"><div>{['social-import', 'reel-import'].includes(draft.sourceType) && <p>{sourceLabel(draft.sourceType)}</p>}<h3 title={draft.name || 'Unnamed product'}>{draft.name || 'Unnamed product'}</h3><span>{categoryName(draft.category) || 'Category not selected'} · {formatRelative(draft.updatedAt)}</span></div><div className="draft-progress"><span><i style={{ width: `${readiness.score || 0}%` }} /></span><b>{readiness.score || 0}%</b></div>{(draft.lastPublishError || readiness.issues?.[0]) && <p className="draft-first-issue">{draft.lastPublishError || readiness.issues[0]}</p>}</div>
     <div className="draft-queue-card__actions">
       {published && draft.publishedProductId ? draft.publishedProductDeleted ? <span className="draft-inline-note">Product permanently removed</span> : <a className="admin-btn" href={`/admin/products/edit?id=${encodeURIComponent(draft.publishedProductId)}`}><FilePenLine size={15} />Edit product</a> : archived ? <button type="button" className="admin-btn" onClick={onRestore} disabled={busy}><ArchiveRestore size={15} />Restore</button> : <><button type="button" className="admin-btn" onClick={onEdit} disabled={busy}><FilePenLine size={15} />Review</button><button type="button" className="admin-btn-ghost" onClick={onPreview}><Eye size={15} />Preview</button><button type="button" className="draft-icon-button" onClick={onArchive} disabled={busy} aria-label="Archive draft"><Archive size={16} /></button></>}
       {(published || archived) && <button type="button" className="draft-danger-button" onClick={onDelete} disabled={busy}><Trash2 size={15} />{published ? 'Remove draft' : 'Delete'}</button>}
@@ -401,7 +409,7 @@ function DraftEditor({ draft, categories, structure, apiPrefix, autoSmartFill = 
   const common = { form, update, edit, categories, structure, attributes, apiPrefix, autoSmartFill, subcategories, sizingMode, sizingProduct, sizes, colors, columns, rows, syncVariants, updateVariant, updateMeasurement, setUploadBusy };
 
   return <div className="draft-editor-overlay" role="dialog" aria-modal="true" aria-labelledby="draft-editor-title"><aside className="draft-editor">
-    <header className="draft-editor__header"><div><p>PRODUCT REVIEW</p><h2 id="draft-editor-title">{form.name || 'Unnamed product draft'}</h2><span className={`draft-editor-save is-${saveState}`}>{saveState === 'saving' ? 'Saving...' : saveState === 'saved' ? 'All changes saved' : saveState === 'error' ? 'Save failed' : 'Unsaved changes'}</span></div><button type="button" onClick={close} aria-label="Close draft editor"><X /></button></header>
+    <header className="draft-editor__header"><div><h2 id="draft-editor-title">{form.name || 'Unnamed product draft'}</h2><span className={`draft-editor-save is-${saveState}`}>{saveState === 'saving' ? 'Saving...' : saveState === 'saved' ? 'Saved' : saveState === 'error' ? 'Save failed' : 'Unsaved changes'}</span></div><button type="button" onClick={close} aria-label="Close draft editor"><X /></button></header>
     {recovery && <div className="draft-recovery"><span>Newer unsaved changes were found on this device.</span><button type="button" onClick={() => { setForm(recovery.form); setDirty(true); setRecovery(null); }}>Restore</button><button type="button" onClick={() => { localStorage.removeItem(storageKey); setRecovery(null); }}>Discard</button></div>}
     {stale && <div className="draft-alert is-error"><span>This draft changed elsewhere. Reload the latest version before editing again.</span><button type="button" onClick={() => window.location.reload()}>Reload</button></div>}
     {error && <p role="alert" className="draft-alert is-error">{error}</p>}
@@ -422,7 +430,7 @@ function BasicFields({ form, update, edit, categories, structure, attributes, ap
 }
 
 function MediaFields({ form, edit, update, apiPrefix, setUploadBusy, draft }) {
-  return <div className="draft-form-section"><SectionTitle title="Product photos" note="Reorder photos and choose the storefront cover. Removed photos disappear only after saving." /><ImageUploader value={form.images || []} onChange={(value) => edit((current) => ({ ...current, images: value, image: value.find((item) => item.primary)?.url || value[0]?.url || '' }))} multiple maxFiles={12} uploadPath={`${apiPrefix}/uploads`} uploadContext="products" label="Add product photos" onBusyChange={setUploadBusy} /><SectionTitle title="Product video" note="Optional short videos help customers understand fabric and fit." /><VideoUploader value={form.videos || []} onChange={(value) => update('videos', value)} maxFiles={3} uploadPath={`${apiPrefix}/uploads/videos`} onBusyChange={setUploadBusy} />{draft.sourceUrl && <a href={draft.sourceUrl} target="_blank" rel="noreferrer" className="draft-source-link">Open original {draft.sourcePlatform || 'social'} post</a>}</div>;
+  return <div className="draft-form-section"><SectionTitle title="Product photos" note="Reorder photos and choose the storefront cover. Removed photos disappear only after saving." /><ImageUploader value={form.images || []} onChange={(value) => edit((current) => ({ ...current, images: value, image: value.find((item) => item.primary)?.url || value[0]?.url || '' }))} multiple maxFiles={12} uploadPath={`${apiPrefix}/uploads`} uploadContext="products" label="Add product photos" onBusyChange={setUploadBusy} /><SectionTitle title="Product video" note="Show product features, condition and included accessories." /><VideoUploader value={form.videos || []} onChange={(value) => update('videos', value)} maxFiles={3} uploadPath={`${apiPrefix}/uploads/videos`} onBusyChange={setUploadBusy} />{draft.sourceUrl && <a href={draft.sourceUrl} target="_blank" rel="noreferrer" className="draft-source-link">Open original {draft.sourcePlatform || 'social'} post</a>}</div>;
 }
 
 function InventoryFields({ form, update, structure, sizingMode, sizingProduct, sizes, columns, rows, syncVariants, updateVariant, updateMeasurement }) {
@@ -440,8 +448,24 @@ function ShippingFields({ form, update, edit, structure }) {
   return <div className="draft-form-section"><SectionTitle title="Package and delivery" note="These values support courier availability and accurate shipping charges." /><div className="draft-form-grid four"><NumberField label="Packed weight (kg)" value={form.shippingWeightKg ?? ''} step="0.01" onChange={(value) => update('shippingWeightKg', value)} /><NumberField label="Length (cm)" value={form.packageDimensions?.lengthCm ?? ''} onChange={(value) => update('packageDimensions', { ...form.packageDimensions, lengthCm: value })} /><NumberField label="Width (cm)" value={form.packageDimensions?.widthCm ?? ''} onChange={(value) => update('packageDimensions', { ...form.packageDimensions, widthCm: value })} /><NumberField label="Height (cm)" value={form.packageDimensions?.heightCm ?? ''} onChange={(value) => update('packageDimensions', { ...form.packageDimensions, heightCm: value })} /></div><SectionTitle title="Sourcing and compliance" /><div className="draft-form-grid"><Field label="Country of origin"><TextInput value={form.countryOfOrigin || ''} onChange={(event) => updateCountry(event.target.value)} /></Field><Field label="Supplier name"><TextInput value={form.supplierName || ''} onChange={(event) => update('supplierName', event.target.value)} /></Field><Field label="Manufacturer / importer details"><TextArea value={form.manufacturerDetails || ''} onChange={(event) => update('manufacturerDetails', event.target.value)} /></Field><Field label="Warranty"><TextArea value={form.warranty || ''} onChange={(event) => update('warranty', event.target.value)} /></Field></div></div>;
 }
 
-function ContentFields({ form, update }) {
-  return <div className="draft-form-section"><SectionTitle title="Customer content" /><Field label="Short description"><TextArea value={form.shortDescription || ''} maxLength={500} onChange={(event) => update('shortDescription', event.target.value)} /></Field><Field label="Full description"><TextArea rows={7} value={form.description || ''} maxLength={6000} onChange={(event) => update('description', event.target.value)} /></Field><div className="draft-form-grid"><Field label="Highlights"><TextArea value={form.highlights || ''} onChange={(event) => update('highlights', event.target.value)} placeholder="Separate highlights with commas" /></Field><Field label="Tags"><TextArea value={form.tags || ''} onChange={(event) => update('tags', event.target.value)} placeholder="Separate tags with commas" /></Field><Field label="Fabric / material"><TextInput value={form.fabric || ''} onChange={(event) => update('fabric', event.target.value)} /></Field><Field label="Occasion"><TextInput value={form.occasion || ''} onChange={(event) => update('occasion', event.target.value)} /></Field><Field label="Care instructions"><TextArea value={form.careInstructions || ''} onChange={(event) => update('careInstructions', event.target.value)} /></Field><Field label="Return policy"><TextArea value={form.returnPolicy || ''} onChange={(event) => update('returnPolicy', event.target.value)} /></Field></div><SectionTitle title="Search preview" /><Field label="Meta title"><TextInput value={form.metaTitle || ''} maxLength={100} onChange={(event) => update('metaTitle', event.target.value)} /></Field><Field label="Meta description"><TextArea value={form.metaDescription || ''} maxLength={300} onChange={(event) => update('metaDescription', event.target.value)} /></Field><Field label="Search keywords"><TextInput value={form.metaKeywords || ''} onChange={(event) => update('metaKeywords', event.target.value)} /></Field></div>;
+function ContentFields({ form, update, structure }) {
+  const technologyCatalog = isTechnologyCatalog(structure);
+  return <div className="draft-form-section">
+    <SectionTitle title="Customer content" />
+    <Field label="Short description"><TextArea value={form.shortDescription || ''} maxLength={500} onChange={event => update('shortDescription', event.target.value)} /></Field>
+    <Field label="Full description"><TextArea rows={7} value={form.description || ''} maxLength={6000} onChange={event => update('description', event.target.value)} /></Field>
+    <div className="draft-form-grid">
+      <Field label="Highlights"><TextArea value={form.highlights || ''} onChange={event => update('highlights', event.target.value)} placeholder="Separate highlights with commas" /></Field>
+      <Field label="Tags"><TextArea value={form.tags || ''} onChange={event => update('tags', event.target.value)} placeholder="Separate tags with commas" /></Field>
+      {!technologyCatalog && <><Field label="Fabric / material"><TextInput value={form.fabric || ''} onChange={event => update('fabric', event.target.value)} /></Field><Field label="Occasion"><TextInput value={form.occasion || ''} onChange={event => update('occasion', event.target.value)} /></Field></>}
+      <Field label={technologyCatalog ? 'Use and care instructions' : 'Care instructions'}><TextArea value={form.careInstructions || ''} onChange={event => update('careInstructions', event.target.value)} /></Field>
+      <Field label="Return policy"><TextArea value={form.returnPolicy || ''} onChange={event => update('returnPolicy', event.target.value)} /></Field>
+    </div>
+    <SectionTitle title="Search preview" />
+    <Field label="Meta title"><TextInput value={form.metaTitle || ''} maxLength={100} onChange={event => update('metaTitle', event.target.value)} /></Field>
+    <Field label="Meta description"><TextArea value={form.metaDescription || ''} maxLength={300} onChange={event => update('metaDescription', event.target.value)} /></Field>
+    <Field label="Search keywords"><TextInput value={form.metaKeywords || ''} onChange={event => update('metaKeywords', event.target.value)} /></Field>
+  </div>;
 }
 
 function VisibilityFields({ form, update }) {
@@ -515,10 +539,11 @@ export function normalizeDraftBody(form, categories = [], structure) {
   const sellingPrice = numeric(form.sellingPrice ?? form.price, 0);
   const brand = String(form.brand || form.attributeValues?.brand || '').trim();
   const countryOfOrigin = String(form.countryOfOrigin || form.attributeValues?.country_of_origin || '').trim();
+  const configuredKeys = new Set(draftAttributeDefinitions(structure, categories, form).map(attribute => attribute.key));
   const payload = {
     ...form, brand, countryOfOrigin, attributeValues: { ...form.attributeValues,
-      ...(brand && structure?.attributes?.some((attribute) => attribute.key === 'brand') ? { brand } : {}),
-      ...(countryOfOrigin && structure?.attributes?.some((attribute) => attribute.key === 'country_of_origin') ? { country_of_origin: countryOfOrigin } : {}) },
+      ...(brand && configuredKeys.has('brand') ? { brand } : {}),
+      ...(countryOfOrigin && configuredKeys.has('country_of_origin') ? { country_of_origin: countryOfOrigin } : {}) },
     baseRevision: Number(form.revision || 0), category: category || undefined,
     images: Array.isArray(form.images) ? form.images : [], videos: Array.isArray(form.videos) ? form.videos : [],
     price: sellingPrice, sellingPrice, originalPrice: numeric(form.originalPrice, sellingPrice),
