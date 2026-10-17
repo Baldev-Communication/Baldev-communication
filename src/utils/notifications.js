@@ -1,5 +1,8 @@
+import { rentalShoppingEnabled } from '../config/features';
+
 export function notificationDestination(item, user) {
   const metadata = item.metadata || {};
+  if (!rentalShoppingEnabled && (metadata.rentalTaskId || metadata.rentalBookingId || metadata.rentalWaitlistId)) return '';
   const admin = item.audience === 'ADMIN';
   const rentalStoreQuery = metadata.storeId || item.storeId ? '&storeId=' + encodeURIComponent(metadata.storeId || item.storeId) : '';
   const socialQuery = () => {

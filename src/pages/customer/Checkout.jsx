@@ -37,6 +37,7 @@ import { shouldExitEmptyCheckout } from '../../utils/checkoutGuard';
 import { bagKey, checkoutCart } from '../../utils/bag';
 import { checkoutPayloadSignature, clearCheckoutAttempt, getCheckoutAttempt } from '../../utils/checkoutAttempt';
 import CouponSelector from '../../components/coupon/CouponSelector';
+import CheckoutDeliveryOptions from '../../components/order/CheckoutDeliveryOptions';
 import './Checkout.css';
 import './CheckoutMobile.css';
 import '../../styles/MobileShoppingTheme.css';
@@ -129,6 +130,10 @@ export default function Checkout({ navigate }) {
   const [paymentError, setPaymentError] = useState('');
   const [paymentAttempt, setPaymentAttempt] = useState(0);
   const [quoteAttempt, setQuoteAttempt] = useState(0);
+  const [deliveryConfig, setDeliveryConfig] = useState({ standardEnabled: true, local: { enabled: false } });
+  const [deliveryMethod, setDeliveryMethod] = useState('');
+  const [pinSaving, setPinSaving] = useState(false);
+  const [pinError, setPinError] = useState('');
   useEffect(() => {
     const refresh = () => { setPaymentAttempt(value => value + 1); setQuoteAttempt(value => value + 1); };
     const storage = event => { if (event.key === SETTINGS_STORAGE_KEY) refresh(); };
@@ -208,10 +213,13 @@ export default function Checkout({ navigate }) {
     let alive = true;
     setPaymentLoading(true);
     setPaymentError('');
-    api.get('/settings/payment-methods', { cacheFirst: true, forceRefetch: paymentAttempt > 0 })
+    api.get('/settings/payment-methods', { cache: 'no-store', forceRefetch: true })
       .then((data) => {
         if (!alive) return;
         const methods = Array.isArray(data?.methods) ? data.methods : [];
+        const delivery = data?.delivery || { standardEnabled: true, local: { enabled: false } };
+        setDeliveryConfig(delivery);
+        setDeliveryMethod(current => current === 'LOCAL' && delivery.local?.enabled ? current : current === 'STANDARD' && delivery.standardEnabled !== false ? current : delivery.local?.enabled ? 'LOCAL' : 'STANDARD');
         setPaymentOptions(methods);
         if (!methods.some(option => option.enabled)) setPaymentError('No payment methods are currently available. Please retry or contact the store.');
         setPaymentMethod((current) => {
@@ -230,6 +238,7 @@ export default function Checkout({ navigate }) {
   }, [paymentAttempt]);
 
   const selectedAddress = addresses.find((item) => item._id === selectedAddressId);
+  const deliveryAddressSignature = JSON.stringify(selectedAddress || null);
   const cartSignature = cart.items
     .map((item) => `${item.product._id || item.product.id}:${item.quantity}:${item.size || ''}:${item.color || ''}:${item.variantId || ''}`)
     .join('|');
@@ -273,6 +282,7 @@ export default function Checkout({ navigate }) {
       coupon: cart.coupon,
       paymentMethod,
       shippingAddress: selectedAddress,
+      deliveryMethod: deliveryMethod || 'STANDARD',
     })
       .then((data) => {
         if (!alive) return;
@@ -290,6 +300,7 @@ export default function Checkout({ navigate }) {
       .catch((err) => {
         if (!alive) return;
         setQuote(null);
+        if (err.code === 'DELIVERY_METHOD_UNAVAILABLE') setPaymentAttempt(value => value + 1);
         if (cart.coupon?.code && ['INVALID_COUPON', 'COUPON_EXPIRED', 'VALIDATION_ERROR'].includes(err.code)) {
           const removedCode = cart.coupon.code;
           cart.setCoupon(null);
@@ -300,7 +311,7 @@ export default function Checkout({ navigate }) {
       });
 
     return () => { alive = false; };
-  }, [cartSignature, paymentMethod, cart.coupon?.code, selectedAddressId, selectedAddress?.pincode, quoteAttempt]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [cartSignature, paymentMethod, cart.coupon?.code, selectedAddressId, deliveryAddressSignature, deliveryMethod, quoteAttempt]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     const media = window.matchMedia('(max-width: 1023px)');
@@ -333,9 +344,9 @@ export default function Checkout({ navigate }) {
     navigate('/cart');
   }, [cartHydrated, cartItemCount, cart.error, cart.loading, pendingReceipt, navigate, setCartCoupon, setToast]);
 
-  const deliveryWindow = useMemo(() => getDeliveryWindow(), []);
+  const deliveryWindow = useMemo(() => deliveryMethod === 'LOCAL' ? deliveryConfig.local?.estimate || 'Store local delivery' : getDeliveryWindow(), [deliveryMethod, deliveryConfig.local?.estimate]);
   const placeOrderLabel = getPlaceOrderLabel(paymentMethod, placing);
-  const quoteReady = Boolean(quote) && !paymentLoading && !paymentError && !addressLoading && !addressError && !cart.error && !cart.loading && !cart.pendingCount;
+  const quoteReady = Boolean(quote) && !pinSaving && !paymentLoading && !paymentError && !addressLoading && !addressError && !cart.error && !cart.loading && !cart.pendingCount;
 
   // Backend quote wins; the cart figures are only a placeholder while it loads.
   const summary = useMemo(() => ({
@@ -426,6 +437,7 @@ export default function Checkout({ navigate }) {
         size: item.size || '', color: item.color || '', variantId: item.variantId || '', quantity: item.quantity,
       })),
       shippingAddress: selectedAddress,
+      deliveryMethod: deliveryMethod || 'STANDARD',
       paymentMethod,
       coupon: cart.coupon ? { code: cart.coupon.code } : undefined,
       attribution: readTrafficAttribution(),
@@ -673,7 +685,19 @@ export default function Checkout({ navigate }) {
 
   const addressStatus = addressLoading || addressError ? <CheckoutLoadState label="delivery addresses" loading={addressLoading} error={addressError} onRetry={() => loadAddresses(selectedAddressId)} /> : null;
   const paymentStatus = paymentLoading || paymentError ? <CheckoutLoadState label="payment options" loading={paymentLoading} error={paymentError} onRetry={() => setPaymentAttempt(value => value + 1)} /> : null;
-  const retryQuote = () => setQuoteAttempt(value => value + 1);
+  const retryQuote = () => { setQuoteAttempt(value => value + 1); setPaymentAttempt(value => value + 1); };
+  const saveDeliveryPin = async location => {
+    if (!selectedAddress || pinSaving || placing) return;
+    const request = addressRequest.current;
+    const expectedAddress = Object.fromEntries(['houseNo', 'area', 'city', 'state', 'pincode'].map(key => [key, String(selectedAddress[key] || (key === 'houseNo' ? selectedAddress.houseNumber : '') || '')]));
+    setPinSaving(true); setPinError(''); setQuote(null);
+    try {
+      const saved = await api.patch(`/user/addresses/${selectedAddress._id}/location`, { location, expectedAddress });
+      if (request === addressRequest.current) adoptAddresses(saved);
+    } catch (failure) { if (request === addressRequest.current) setPinError(failure.message || 'Could not save the delivery location. Try again.'); }
+    finally { setPinSaving(false); }
+  };
+  const deliveryChoices = <CheckoutDeliveryOptions config={deliveryConfig} method={deliveryMethod} onMethodChange={value => { setQuote(null); setPinError(''); setDeliveryMethod(value); }} address={selectedAddress} onLocationChange={saveDeliveryPin} saving={pinSaving} error={pinError} disabled={placing || savingAddress} />;
 
   if (pendingCodVerification) return <CodVerificationStep verification={pendingCodVerification} otp={codOtp} setOtp={setCodOtp} message={codVerificationMessage} busy={codVerificationBusy} onVerify={verifyCodOrder} onResend={resendCodOtp} onOrders={() => navigate('/orders')} />;
   if (pendingReceipt) return <section className="sc-checkout-status sc-checkout-pending">
@@ -747,6 +771,7 @@ export default function Checkout({ navigate }) {
             quoteError={quoteError}
             quoteReady={quoteReady}
             shipping={quote?.shipping}
+            deliveryChoices={deliveryChoices}
             retryQuote={retryQuote}
             onBack={() => setMobileStep(2)}
           />
@@ -793,6 +818,7 @@ export default function Checkout({ navigate }) {
       quoteError={isDesktop ? quoteError : ''}
       quoteReady={quoteReady}
       shipping={quote?.shipping}
+      deliveryChoices={deliveryChoices}
       retryQuote={retryQuote}
     />
   );
@@ -853,6 +879,7 @@ function DesktopCheckout({
   quoteError,
   quoteReady,
   shipping,
+  deliveryChoices,
   retryQuote,
 }) {
   const needsLogin = !user;
@@ -1005,6 +1032,7 @@ function DesktopCheckout({
           </main>
 
           <aside className="sc-checkout__side">
+            {deliveryChoices}
             <ShippingAvailability shipping={shipping} />
             <DesktopPriceSummary summary={summary} cta={placeOrderLabel} placing={placing} quoteReady={quoteReady} onAction={placeOrder} />
             <DesktopAssurance />
@@ -1019,6 +1047,7 @@ function DesktopCheckout({
 }
 
 function ShippingAvailability({ shipping }) {
+  if (shipping?.deliveryMethod === 'LOCAL') return <div role="status" className="my-3 rounded-xl border border-emerald-100 bg-emerald-50 p-3 text-sm text-emerald-900"><strong>Store local delivery available</strong><p>{shipping.distanceKm} km from store{shipping.deliveryEstimate ? ` · ${shipping.deliveryEstimate}` : ''}</p></div>;
   if (!shipping?.serviceable || shipping.provider === 'manual') return null;
   const provider = ({ bluedart: 'Blue Dart', shiprocket: 'Shiprocket', delhivery: 'Delhivery', xpressbees: 'Xpressbees' })[shipping.provider] || 'Courier';
   return <div role="status" className="my-3 rounded-xl border border-emerald-100 bg-emerald-50 p-3 text-sm text-emerald-900"><strong>{provider} delivery available</strong><p>PIN {shipping.destinationPincode} · Delivery {Number(shipping.deliveryCharge) === 0 ? 'FREE' : `₹${Number(shipping.deliveryCharge).toLocaleString('en-IN')}`}{shipping.serviceName && ` · ${shipping.serviceName}`}</p></div>;
@@ -1222,7 +1251,7 @@ function MobileAddressSelector({ addresses, selectedAddressId, setSelectedAddres
   </>;
 }
 
-function MobilePaymentStep({ selectedAddress, cart, summary, paymentOptions, paymentStatus, coupons, bestCouponCode, applyCoupon, removeCoupon, couponBusyCode, couponFeedback, paymentMethod, setPaymentMethod, placeOrder, placing, placeOrderLabel, error, quoteError, quoteReady, shipping, retryQuote, onBack }) {
+function MobilePaymentStep({ selectedAddress, cart, summary, paymentOptions, paymentStatus, coupons, bestCouponCode, applyCoupon, removeCoupon, couponBusyCode, couponFeedback, paymentMethod, setPaymentMethod, placeOrder, placing, placeOrderLabel, error, quoteError, quoteReady, shipping, deliveryChoices, retryQuote, onBack }) {
   return <>
     <MobileStepHeader title="Payment" stepLabel="Step 3/3" onBack={onBack} />
     <MobileCheckoutSteps step={3} onAddress={onBack} />
@@ -1270,6 +1299,7 @@ function MobilePaymentStep({ selectedAddress, cart, summary, paymentOptions, pay
       </section>
       {error && <p role="alert" className="sc-mobile-checkout__error">{error}</p>}
       {quoteError && <CheckoutLoadState label="order total" error={quoteError} onRetry={retryQuote} />}
+      {deliveryChoices}
       <ShippingAvailability shipping={shipping} />
     </div>
     <div className="sc-mobile-checkout__bottom"><div className="sc-mobile-checkout__bottom-inner">

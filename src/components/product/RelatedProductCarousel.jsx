@@ -1,3 +1,4 @@
+import { rentalShoppingEnabled } from '../../config/features';
 import { useMemo, useRef } from 'react';
 import { ChevronLeft, ChevronRight, Heart, ShoppingBag } from 'lucide-react';
 import { useCart } from '../../context/CartContext';
@@ -43,7 +44,7 @@ export default function RelatedProductCarousel({ products = [], navigate, title 
           const price = Number(product.price || 0).toLocaleString('en-IN');
           const original = Number(product.originalPrice || product.price || 0).toLocaleString('en-IN');
           const discount = wishlistPrice(product).discount;
-          const rental = product.discoveryPurchase === 'RENTAL' || product.commerceMode === 'RENTAL_ONLY';
+          const rental = rentalShoppingEnabled && (product.discoveryPurchase === 'RENTAL' || product.commerceMode === 'RENTAL_ONLY');
           const unavailable = !rental && (isUnavailable(product) || wishlistStock(product) === 0);
           const isWishlisted = wishlist.items.some((item) => (item._id || item.id || item.slug) === productId);
           const cartItem = cart.getCartItem(product);

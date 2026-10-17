@@ -1,3 +1,4 @@
+import { rentalShoppingEnabled } from '../../config/features';
 import { lazy, Suspense, memo, useEffect, useMemo, useRef, useState } from 'react';
 import {
   IconChevronLeft,
@@ -423,7 +424,7 @@ const LuxuryProductCard = memo(function LuxuryProductCard({ product, navigate, l
   const originalPrice = Number(product.originalPrice ?? price);
   const discount = Number(product.discountPercentage) || (originalPrice > price ? Math.round(((originalPrice - price) / originalPrice) * 100) : 0);
   const wishlisted = wishlist.items.some((item) => getProductId(item) === productId);
-  const rental = product.commerceMode === 'RENTAL_ONLY';
+  const rental = rentalShoppingEnabled && (product.commerceMode === 'RENTAL_ONLY');
   const unavailable = !rental && (isUnavailable(product) || wishlistStock(product) === 0);
   const needsSize = getSelectableSizes(product).length > 0;
 

@@ -1,13 +1,26 @@
 const definitionKey = value => String(value || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
 
-export function draftAttributeDefinitions(structure, categories = [], form = {}) {
+export function draftCategoryDefinition(structure, categories = [], form = {}) {
   const definitions = structure?.categoryDefinitions || [];
   const categoryId = form.category?._id || form.category;
   const category = categories.find(item => String(item._id) === String(categoryId));
   const subcategory = String(form.subCategory || '').trim().toLowerCase();
   const child = subcategory && definitions.find(item => item.key === definitionKey(subcategory) || String(item.name || '').toLowerCase() === subcategory);
-  const categoryDefinition = child || [form.categoryDefinitionKey, category?.definitionKey, definitionKey(category?.name)]
+  const base = [category?.definitionKey, form.categoryDefinitionKey, definitionKey(category?.name)]
     .map(key => definitions.find(item => item.key === key)).find(Boolean);
+  let cursor = child;
+  for (let depth = 0; cursor && depth < 12; depth++) {
+    if (!base || cursor.key === base.key) return child;
+    const parentKey = cursor.parentKey;
+    cursor = definitions.find(item => item.key === parentKey);
+  }
+  return base;
+}
+
+export function draftAttributeDefinitions(structure, categories = [], form = {}) {
+  const definitions = structure?.categoryDefinitions || [];
+  const category = categories.find(item => String(item._id) === String(form.category?._id || form.category));
+  const categoryDefinition = draftCategoryDefinition(structure, categories, form);
   const merged = new Map((structure?.attributes || []).map(item => [item.key, item]));
   const chain = [];
   let cursor = categoryDefinition;
@@ -19,7 +32,24 @@ export function draftAttributeDefinitions(structure, categories = [], form = {})
   for (const layer of chain) for (const item of layer.attributes || []) {
     if (item && typeof item === 'object' && item.key) merged.set(item.key, { ...merged.get(item.key), ...item });
   }
+  for (const item of category?.customAttributes || []) {
+    if (item && /^custom_[a-z][a-z0-9_]{0,32}$/.test(item.key)) merged.set(item.key, item);
+  }
   return [...merged.values()].filter(item => item.active !== false).sort((a, b) => Number(a.sortOrder || 0) - Number(b.sortOrder || 0));
+}
+
+export function changeProductCategory(form, categoryId, structure, categories = []) {
+  const category = categories.find(item => String(item._id) === String(categoryId));
+  const next = { ...form, category: categoryId, subCategory: '', categoryDefinitionKey: category?.definitionKey || definitionKey(category?.name) };
+  if (!structure) return next;
+  const before = new Map(draftAttributeDefinitions(structure, categories, form).map(item => [item.key, item]));
+  const after = new Map(draftAttributeDefinitions(structure, categories, next).map(item => [item.key, item]));
+  next.attributeValues = Object.fromEntries(Object.entries(form.attributeValues || {}).filter(([key, value]) => {
+    const definition = after.get(key);
+    if (!definition || (before.has(key) && (before.get(key).unit || '') !== (definition.unit || ''))) return false;
+    return !firstInvalidDraftAttribute([{ ...definition, required: false }], { [key]: value });
+  }));
+  return next;
 }
 
 export function firstInvalidDraftAttribute(attributes = [], values = {}) {

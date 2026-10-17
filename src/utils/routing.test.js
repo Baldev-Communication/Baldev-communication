@@ -1,4 +1,14 @@
-import { BEFORE_ROUTE_CHANGE_EVENT, boutiquePath, parseProductKey, productHref, pushAppRoute, storefrontPath } from './routing';
+import { BEFORE_ROUTE_CHANGE_EVENT, boutiquePath, parseProductKey, productHref, pushAppRoute, retiredRentalTarget, storefrontPath } from './routing';
+
+test.each([
+  ['/rentals?id=old-booking', '/products'], ['/rental-book?product=old', '/products'],
+  ['/admin/rentals?tab=studio', '/admin/products'], ['/seller/rentals/bookings', '/seller/products'],
+  ['/store/baldev/rentals?id=old', '/store/baldev/products'],
+  ['/baldev/rental-book?product=old', '/store/baldev/products'],
+  ['/store/baldev/products', ''], ['/admin/orders', ''], ['/rental-bookcase', ''],
+])('retired rental URL %s resolves safely to %s', (path, target) => {
+  expect(retiredRentalTarget(path)).toBe(target);
+});
 
 test('designer navigation guard cancels a route change without changing the URL', () => {
   window.history.replaceState(null, '', '/admin/customization');

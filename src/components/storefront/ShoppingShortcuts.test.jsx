@@ -14,10 +14,10 @@ test('shortcuts encode real occasion names and respect feature switches', () => 
   rerender(<ShoppingShortcuts data={{ ...data, occasionShoppingEnabled: false }} navigate={navigate} />);
   expect(screen.queryByText('Shop by occasion')).not.toBeInTheDocument();
 });
-test('rental-only stores never advertise buying and mixed stores offer both journeys', () => {
+test('stale rental-only and mixed discovery responses cannot enable rental shopping', () => {
   const navigate = jest.fn(); const { rerender } = render(<ShoppingShortcuts data={{ rentalEnabled: true, mode: 'RENTAL_ONLY', occasions: [] }} navigate={navigate} />);
-  expect(screen.queryByRole('button', { name: 'Shop to buy' })).not.toBeInTheDocument();
-  fireEvent.click(screen.getByRole('button', { name: /Explore rentals/ })); expect(navigate).toHaveBeenCalledWith('/rental-book');
+  expect(screen.queryByRole('region', { name: 'Rental shopping' })).not.toBeInTheDocument();
   rerender(<ShoppingShortcuts data={{ rentalEnabled: true, mode: 'SALE_AND_RENTAL', occasions: [] }} navigate={navigate} />);
-  fireEvent.click(screen.getByRole('button', { name: 'Shop to buy' })); expect(navigate).toHaveBeenCalledWith('/products');
+  expect(screen.queryByRole('button', { name: /Explore rentals/ })).not.toBeInTheDocument();
+  expect(navigate).not.toHaveBeenCalled();
 });

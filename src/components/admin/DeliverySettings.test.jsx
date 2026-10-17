@@ -30,6 +30,20 @@ test('manual courier is the legacy default and does not advertise mandatory cour
   expect(screen.getByRole('heading', { name: 'Dispatch address (optional)' })).toBeInTheDocument();
 });
 
+test('local and existing delivery toggles retain their separate fees and provider setup', async () => {
+  render(<Harness initial={{ standardDeliveryEnabled: true, localDeliveryEnabled: true, localDeliveryRadiusKm: 5, localDeliveryFee: 35, shippingProvider: 'manual', deliveryCharge: 99, localDeliveryOrigin: { latitude: 28.61, longitude: 77.21 } }} />);
+  expect(screen.getByRole('checkbox', { name: 'Enable local self delivery' })).toBeChecked();
+  fireEvent.click(screen.getByRole('checkbox', { name: 'Enable existing delivery' }));
+  expect(screen.getByLabelText(/Active delivery provider/)).toHaveValue('manual');
+  fireEvent.change(screen.getByLabelText(/Local delivery fee/), { target: { value: '45' } });
+  fireEvent.click(screen.getByRole('checkbox', { name: 'Enable local self delivery' }));
+  expect(screen.getByText(/Both delivery options are off/)).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('checkbox', { name: 'Enable local self delivery' }));
+  expect(screen.getByLabelText(/Local delivery fee/)).toHaveValue(45);
+  expect(screen.getByLabelText(/Delivery radius/)).toHaveValue(5);
+  await waitFor(() => expect(api.get).toHaveBeenCalled());
+});
+
 test('self delivery explains manual progress and needs no AWB or live tracking', async () => {
   render(<Harness />);
   fireEvent.change(screen.getByLabelText(/Default manual delivery method/), { target: { value: 'SELF' } });

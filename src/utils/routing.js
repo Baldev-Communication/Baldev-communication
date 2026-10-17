@@ -11,6 +11,15 @@ export const RESERVED_PATHS = new Set([
 export const ROUTE_CHANGE_EVENT = 'samira:routechange';
 export const BEFORE_ROUTE_CHANGE_EVENT = 'samira:before-routechange';
 
+export function retiredRentalTarget(route = '') {
+  const path = boutiquePath(String(route).split('?')[0]);
+  const workspace = path.match(/^\/(admin|seller)\/rentals(?:\/|$)/);
+  if (workspace) return `/${workspace[1]}/products`;
+  const store = path.match(/^\/store\/([^/]+)\/(?:rentals|rental-book)(?:\/|$)/);
+  if (store) return `/store/${store[1]}/products`;
+  return /^\/(?:rentals|rental-book)(?:\/|$)/.test(path) ? '/products' : '';
+}
+
 export function notifyRouteChange() {
   if (typeof window === 'undefined') return;
   window.dispatchEvent(new Event(ROUTE_CHANGE_EVENT));

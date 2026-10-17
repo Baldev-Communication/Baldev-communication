@@ -1,8 +1,9 @@
 import { activeVariants, findProductVariant } from './variants';
 import { getSelectableSizes, resolveSizingMode } from './productSizing';
+import { rentalShoppingEnabled } from '../config/features';
 
 export const wishlistId = product => String(product?._id || product?.id || product?.slug || '');
-export const isUnavailable = product => Boolean(product?.unavailable || product?.isArchived || product?.isActive === false);
+export const isUnavailable = product => Boolean(product?.unavailable || product?.isArchived || product?.isActive === false || (!rentalShoppingEnabled && product?.commerceMode === 'RENTAL_ONLY'));
 const unique = list => [...new Set(list.filter(value => value !== undefined && value !== null).map(String))];
 export function wishlistOptions(product) {
   const variants = activeVariants(product);

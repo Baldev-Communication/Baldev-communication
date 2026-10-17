@@ -18,14 +18,15 @@ export function isSecureTrackingUrl(value) {
 }
 
 export default function ManualShipmentForm({ order, defaultMode = 'COURIER', busy = false, onSave, apiBase }) {
-  const [form, setForm] = useState(() => formFrom(order.shipment, defaultMode));
+  const effectiveMode = order.shippingQuote?.deliveryMethod === 'LOCAL' ? 'SELF' : defaultMode;
+  const [form, setForm] = useState(() => formFrom(order.shipment, effectiveMode));
   const [error, setError] = useState('');
   const [saved, setSaved] = useState(false);
   const [working, setWorking] = useState(false);
   const pending = useRef(false);
   const orderScope = useRef(order._id); orderScope.current = order._id;
   const shipment = order.shipment;
-  useEffect(() => { setForm(formFrom(shipment, defaultMode)); setError(''); setSaved(false); }, [order._id, shipment, defaultMode]);
+  useEffect(() => { setForm(formFrom(shipment, effectiveMode)); setError(''); setSaved(false); }, [order._id, shipment, effectiveMode]);
   const dispatched = dispatchedStatuses.includes(order.orderStatus);
   const returning = shipment?.status === 'RTO_IN_TRANSIT';
   const editable = ['Confirmed', 'Packed', 'Shipped', 'Out for Delivery'].includes(order.orderStatus) && !['RETURNED', 'DELIVERED', 'CANCELLED'].includes(shipment?.status);
@@ -65,7 +66,7 @@ export default function ManualShipmentForm({ order, defaultMode = 'COURIER', bus
       <WorkflowSmartFill key={String(order._id)} workflow="shipment" form={form} onChange={setForm} apiBase={apiBase} documents disabled={busy || working || returning || !editable} protectedPaths={dispatched ? ['courierName', 'trackingNumber'] : []} />
       <h3 className="flex items-center gap-2 text-base font-bold"><PackageCheck size={18} />Manage delivery yourself</h3>
       <p className="admin-note mt-1">No delivery integration or courier API account is required. Customers see the saved details and your order status updates.</p>
-      <label className="admin-field mt-4">Delivery method<select className={fieldClass} value={form.fulfillmentMode} disabled={dispatched} onChange={event => edit('fulfillmentMode', event.target.value)}><option value="COURIER">Courier booked outside this store</option><option value="SELF">Self delivery / your delivery team</option></select></label>
+      <label className="admin-field mt-4">Delivery method<select className={fieldClass} value={form.fulfillmentMode} disabled={dispatched || order.shippingQuote?.deliveryMethod === 'LOCAL'} onChange={event => edit('fulfillmentMode', event.target.value)}><option value="COURIER">Courier booked outside this store</option><option value="SELF">Self delivery / your delivery team</option></select></label>
       {dispatched && <p className="admin-note mt-1">{returning ? 'This parcel is returning to the store. Delivery settings are locked; only the customer message and physical return receipt can be updated.' : 'Delivery method, courier and tracking ID are locked after dispatch. You can update the tracking link, estimate, contact and customer message.'}</p>}
       <div className="mt-3 rounded-xl bg-slate-50 p-3 text-sm">{self ? <><strong className="flex items-center gap-2"><Truck size={16} />Self delivery</strong><p className="mt-1">Deliver with your own team. We create a delivery reference when you save; a courier AWB is not needed.</p>{shipment?.deliveryReference && <p className="mt-2 break-all">Delivery reference: <strong>{shipment.deliveryReference}</strong></p>}</> : <><strong>Manual courier tracking</strong><p className="mt-1">Save a draft now and add the real courier name and tracking ID later. Both are required before dispatch. Tracking links open the courier website; store statuses are updated by your team.</p></>}</div>
       <div className="mt-4 grid gap-4 sm:grid-cols-2">

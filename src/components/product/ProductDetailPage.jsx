@@ -2,7 +2,6 @@ import { useMemo, useState } from 'react';
 import { ChevronRight, Star } from 'lucide-react';
 import ProductGallery from './ProductGallery';
 import ProductInfoPanel from './ProductInfoPanel';
-import RentalOffer from '../rentals/RentalOffer';
 import ProductTrustPanel from './ProductTrustPanel';
 import ProductTabs from './ProductTabs';
 import RelatedProductCarousel from './RelatedProductCarousel';
@@ -122,10 +121,8 @@ export default function ProductDetailPage({
           />
 
           <div className="sc-pdp__info-stack">
-            <RentalOffer productId={product._id || product.id} navigate={navigate} />
             <ProductInfoPanel
               product={product}
-              rentalOnly={settings.commerceMode === 'RENTAL_ONLY' || product.commerceMode === 'RENTAL_ONLY'}
               size={size}
               setSize={setSize}
               color={color}

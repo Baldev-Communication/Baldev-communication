@@ -14,8 +14,9 @@ export function checkoutPayloadSignature(payload = {}) {
   return JSON.stringify({
     paymentMethod: payload.paymentMethod,
     expectedTotal: payload.expectedTotal,
+    deliveryMethod: payload.deliveryMethod || 'STANDARD',
     coupon: payload.coupon?.code || '',
-    address: payload.shippingAddress?._id || [payload.shippingAddress?.pincode, payload.shippingAddress?.houseNo, payload.shippingAddress?.area].join('|'),
+    address: [payload.shippingAddress?._id, payload.shippingAddress?.fullName, payload.shippingAddress?.mobile || payload.shippingAddress?.phone, payload.shippingAddress?.pincode, payload.shippingAddress?.houseNo, payload.shippingAddress?.area, payload.shippingAddress?.city, payload.shippingAddress?.state, payload.shippingAddress?.landmark, payload.shippingAddress?.location?.latitude, payload.shippingAddress?.location?.longitude].join('|'),
     items: (payload.orderItems || []).map(item => [item.product, item.variantId || '', item.size || '', item.color || '', item.quantity]),
   });
 }

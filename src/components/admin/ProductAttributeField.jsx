@@ -1,7 +1,7 @@
-export default function ProductAttributeField({ attribute, value, onChange, error }) {
+export default function ProductAttributeField({ attribute, value, onChange, error, disabled = false }) {
   const label = <span>{attribute.label}{attribute.unit ? ` (${attribute.unit})` : ''}{attribute.required && <em>*</em>}</span>;
   const common = {
-    value: value ?? '', required: Boolean(attribute.required),
+    value: value ?? '', required: Boolean(attribute.required), disabled,
     onChange: event => onChange(event.target.value),
     'aria-invalid': Boolean(error),
     'data-required-attribute': attribute.required && !String(value ?? '').trim() ? attribute.key : undefined,
@@ -9,7 +9,7 @@ export default function ProductAttributeField({ attribute, value, onChange, erro
   };
   if (attribute.type === 'multi_select' && attribute.options?.length) {
     const selected = new Set(String(value || '').split(',').map(item => item.trim()).filter(Boolean));
-    return <fieldset className="admin-field" data-required-attribute={common['data-required-attribute']} tabIndex={attribute.required ? -1 : undefined}>
+    return <fieldset disabled={disabled} className="admin-field" data-required-attribute={common['data-required-attribute']} tabIndex={attribute.required ? -1 : undefined}>
       <legend>{label}</legend><div className="flex flex-wrap gap-2 rounded-xl border border-theme-border bg-white p-3">{attribute.options.map(option => <label key={option} className={`admin-flag ${selected.has(option) ? 'is-on' : ''}`}><input type="checkbox" checked={selected.has(option)} onChange={() => { const next = new Set(selected); if (next.has(option)) next.delete(option); else next.add(option); onChange([...next].join(', ')); }} />{option}</label>)}</div>
       {error && <span className="admin-field__error">{error}</span>}
     </fieldset>;

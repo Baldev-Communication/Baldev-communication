@@ -23,7 +23,7 @@ import MobileAppCompanion from './components/pwa/MobileAppCompanion';
 import { useAuth } from './context/AuthContext';
 import { getMobileLoaderSnapshot, subscribeMobileLoader } from './utils/mobileLoader';
 import { createStoragePlan } from './utils/userStorage';
-import { boutiquePath, consumeLegacyHash, pushAppRoute, readAppRoute, ROUTE_CHANGE_EVENT } from './utils/routing';
+import { boutiquePath, consumeLegacyHash, notifyRouteChange, pushAppRoute, readAppRoute, retiredRentalTarget, ROUTE_CHANGE_EVENT } from './utils/routing';
 
 const AdminRoute = lazy(() => import('./components/layout/AdminRoute'));
 const SellerRoute = lazy(() => import('./components/layout/SellerRoute'));
@@ -43,9 +43,6 @@ const Profile = lazy(() => import('./pages/customer/Profile'));
 const ProfileDetails = lazy(() => import('./pages/customer/ProfileDetails'));
 const AddressManagement = lazy(() => import('./pages/customer/AddressManagement'));
 const MyOrders = lazy(() => import('./pages/customer/MyOrders'));
-const MyRentals = lazy(() => import('./pages/customer/MyRentals'));
-const RentalCheckout = lazy(() => import('./pages/customer/RentalCheckout'));
-const RentalOperations = lazy(() => import('./pages/admin/Rentals'));
 const OrderDetail = lazy(() => import('./pages/customer/OrderDetail'));
 const OrderSuccess = lazy(() => import('./pages/customer/OrderSuccess'));
 const PaymentFailed = lazy(() => import('./pages/customer/PaymentFailed'));
@@ -112,8 +109,6 @@ const customerRoutes = {
   '/profile/addresses/new': AddressManagement,
   '/profile/addresses/edit': AddressManagement,
   '/orders': MyOrders,
-  '/rentals': MyRentals,
-  '/rental-book': RentalCheckout,
   '/order-detail': OrderDetail,
   '/order-success': OrderSuccess,
   '/payment-failed': PaymentFailed,
@@ -140,7 +135,6 @@ const sellerRoutes = {
   '/seller/products/edit': SellerProductForm,
   '/seller/inventory': Inventory,
   '/seller/orders': SellerOrders,
-  '/seller/rentals': RentalOperations,
   '/seller/returns': Returns,
   '/seller/orders/detail': AdminOrderDetail,
   '/seller/crm': SellerCrm,
@@ -173,7 +167,6 @@ const adminRoutes = {
   '/admin/categories/edit': EditCategory,
   '/admin/variant-groups': VariantGroups,
   '/admin/orders': Orders,
-  '/admin/rentals': RentalOperations,
   '/admin/orders/detail': AdminOrderDetail,
   '/admin/customers': Customers,
   '/admin/coupons': Coupons,
@@ -258,7 +251,14 @@ export default function App() {
 function AppShell({ route, navigate }) {
   const routePath = route.split('?')[0];
   const logicalPath = boutiquePath(routePath);
-  const routeGuardPath = /^\/store\/[^/]+\/(rentals|rental-book)$/.test(logicalPath) ? `/${logicalPath.split('/').at(-1)}` : routePath;  const isAdmin = routePath.startsWith('/admin');
+  const routeGuardPath = routePath;
+  const rentalRedirect = retiredRentalTarget(route);
+  useEffect(() => {
+    if (!rentalRedirect) return;
+    window.history.replaceState(null, '', rentalRedirect);
+    notifyRouteChange();
+  }, [rentalRedirect]);
+  const isAdmin = routePath.startsWith('/admin');
   const isSeller = routePath.startsWith('/seller');
   const { user } = useAuth();
   const { isHostStore } = useStorefront();
@@ -274,8 +274,6 @@ function AppShell({ route, navigate }) {
     '/profile/addresses/new',
     '/profile/addresses/edit',
     '/orders',
-    '/rentals',
-    '/rental-book',
     '/checkout',
     '/order-detail',
     '/order-success',
@@ -301,15 +299,14 @@ function AppShell({ route, navigate }) {
   );
   const Page = useMemo(() => {
     // Legacy admin-login links use the same mobile + OTP flow as every account.
-    if (routePath === '/admin/login') return AdminLogin;    if (isAdmin) return adminRoutes[routePath] || Dashboard;
+    if (routePath === '/admin/login') return AdminLogin;
+    if (isAdmin) return adminRoutes[routePath] || Dashboard;
     if (isSeller) return sellerRoutes[routePath] || SellerDashboard;
     if (logicalPath.startsWith('/store/')) {
       const parts = logicalPath.split('/').filter(Boolean);
       if (parts[2] === 'product') return ProductDetail;
       if (parts[2] === 'products' && parts[3]) return ProductDetail;
       if (parts[2] === 'products' || parts[2] === 'search' || parts[2] === 'category') return Products;
-      if (parts[2] === 'rentals') return MyRentals;
-      if (parts[2] === 'rental-book') return RentalCheckout;
       return StoreHome;
     }
     if (routePath === '/product' || routePath.startsWith('/product/')) return ProductDetail;
@@ -317,7 +314,7 @@ function AppShell({ route, navigate }) {
     if (isHostStore && routePath === '/') return StoreHome;
     return customerRoutes[routePath] || Home;
   }, [isAdmin, isHostStore, isSeller, logicalPath, routePath]);
-  const page = (
+  const page = rentalRedirect ? <RouteFallback /> : (
     <LazyBoundary resetKey={route}><Suspense fallback={<RouteFallback />}>
       <Page navigate={navigate} route={route} />
     </Suspense></LazyBoundary>

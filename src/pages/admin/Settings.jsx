@@ -14,7 +14,6 @@ import DeliverySettings from '../../components/admin/DeliverySettings';
 import SmsSettings from '../../components/admin/SmsSettings';
 import OrderAlertSettings from '../../components/admin/OrderAlertSettings';
 import TrafficSettings from '../../components/admin/TrafficSettings';
-import RentalSettings from '../../components/rentals/RentalSettings';
 import WorkflowSmartFill from '../../components/admin/WorkflowSmartFill';
 
 const ICONS = { brand: Building2, invoice: ReceiptText, contact: Mail, delivery: Truck, payment: CreditCard, policy: ShieldCheck, social: Link2, website: Globe2 };
@@ -46,12 +45,9 @@ export default function Settings({ route = '' }) {
   const [trafficOpened, setTrafficOpened] = useState(false);
   const [trafficDirty, setTrafficDirty] = useState(false);
   const [trafficBusy, setTrafficBusy] = useState(false);
-  const [rentalsOpened, setRentalsOpened] = useState(false);
-  const [rentalsDirty, setRentalsDirty] = useState(false);
-  const [rentalsBusy, setRentalsBusy] = useState(false);
   const lock = useRef(false);
   const dirty = !!baseline && JSON.stringify(form) !== JSON.stringify(baseline);
-  useUnsavedChanges(dirty || smsDirty || alertsDirty || trafficDirty || rentalsDirty, saving || uploading || smsBusy || alertsBusy || trafficBusy || rentalsBusy);
+  useUnsavedChanges(dirty || smsDirty || alertsDirty || trafficDirty, saving || uploading || smsBusy || alertsBusy || trafficBusy);
   const update = (field, value) => { setMessage(null); setForm(current => ({ ...current, ...(['contactEmail', 'contactPhone', 'address', 'footerText', 'socialLinks'].includes(field) ? { contactDetailsEnabled: true } : {}), [field]: value })); };
   const updateIdentity = (field, value) => {
     setMessage(null);
@@ -75,7 +71,7 @@ export default function Settings({ route = '' }) {
 
   const submit = async event => {
     event.preventDefault();
-    if (['sms', 'order-alerts', 'traffic', 'rentals'].includes(active) || smsBusy || alertsBusy || trafficBusy || rentalsBusy) return;
+    if (['sms', 'order-alerts', 'traffic'].includes(active) || smsBusy || alertsBusy || trafficBusy) return;
     if (lock.current || uploadLock.current || loading || loadError || !dirty) return;
     lock.current = true; setSaving(true); setMessage(null);
     try {
@@ -110,7 +106,7 @@ export default function Settings({ route = '' }) {
     <PageHeader title="Store settings" />
     {loading ? <div className="admin-card p-6" role="status">Loading settings...</div> : loadError ? <div role="alert" className="store-settings__notice"><p>{loadError}</p><button type="button" onClick={load} className="admin-btn-ghost">Retry settings</button></div> : <>
       <div className="store-settings__overview">
-        <div className="store-settings__brand"><StoreLogo src={logo} name={form.storeName || 'Your store'} /><div><strong>{form.storeName || 'Your store'}</strong><span>{form.legalBusinessName || 'Business preferences and storefront identity'}</span></div></div>
+        <div className="store-settings__brand"><StoreLogo src={logo} name={form.storeName || 'Your store'} /><div><strong>{form.storeName || 'Your store'}</strong>{form.legalBusinessName && form.legalBusinessName !== form.storeName && <span>{form.legalBusinessName}</span>}</div></div>
         <span className={'store-settings__status ' + (form.acceptingOrders === false ? 'is-paused' : '')}><span />{form.acceptingOrders === false ? 'New orders paused' : 'Accepting orders'}</span>
       </div>
       {readinessError && <div role="status" className="store-settings__notice"><p>Settings are available. {readinessError}</p><button type="button" onClick={refreshReadiness} className="admin-btn-ghost">Retry payment check</button></div>}
@@ -118,20 +114,20 @@ export default function Settings({ route = '' }) {
         <div className="store-settings__layout">
           <aside className="store-settings__sidebar">
             <label className="store-settings__search"><Search size={17} /><input aria-label="Find a settings section" placeholder="Find settings" value={search} onChange={event => setSearch(event.target.value)} /></label>
-            <nav aria-label="Settings sections">{sections.map(section => { const Icon = ICONS[section.icon]; return <button type="button" key={section.id} disabled={uploading || smsBusy || alertsBusy || trafficBusy || rentalsBusy} aria-current={active === section.id ? 'page' : undefined} onClick={() => { setActive(section.id); if (section.id === 'sms') setSmsOpened(true); if (section.id === 'order-alerts') setAlertsOpened(true); if (section.id === 'traffic') setTrafficOpened(true); if (section.id === 'rentals') setRentalsOpened(true); }}><Icon size={18} /><span>{section.title}</span><ChevronRight size={15} /></button>; })}</nav>
+            <nav aria-label="Settings sections">{sections.map(section => { const Icon = ICONS[section.icon]; return <button type="button" key={section.id} disabled={uploading || smsBusy || alertsBusy || trafficBusy} aria-current={active === section.id ? 'page' : undefined} onClick={() => { setActive(section.id); if (section.id === 'sms') setSmsOpened(true); if (section.id === 'order-alerts') setAlertsOpened(true); if (section.id === 'traffic') setTrafficOpened(true); }}><Icon size={18} /><span>{section.title}</span><ChevronRight size={15} /></button>; })}</nav>
             {!sections.length && <p className="store-settings__muted">No matching section. Try payments, logo or delivery.</p>}
           </aside>
           <div className="store-settings__panel">
-            <div className="store-settings__panel-heading"><span>{String(availableSections.indexOf(selected) + 1).padStart(2, '0')} / {String(availableSections.length).padStart(2, '0')}</span><h2>{selected.title}</h2><p>{selected.note}</p></div>
-            <fieldset disabled={saving || uploading} style={['sms', 'order-alerts', 'traffic', 'rentals'].includes(active) ? { display: 'none' } : undefined} className="store-settings__fields">
+            <div className="store-settings__panel-heading"><h2>{selected.title}</h2></div>
+            <fieldset disabled={saving || uploading} style={['sms', 'order-alerts', 'traffic'].includes(active) ? { display: 'none' } : undefined} className="store-settings__fields">
               {['identity', 'business', 'contact'].includes(active) && <WorkflowSmartFill workflow="store" form={form} onChange={setForm} apiBase={settingsApi.startsWith('/seller') ? '/seller/smart-fill' : '/admin/smart-fill'} documents disabled={saving || uploading} />}
               {active === 'identity' && <>
-                <Field label="Store Name" value={form.storeName || ''} onChange={value => updateIdentity('storeName', value)} required maxLength={100} note="Shown on your storefront, admin workspace and new invoices." />
-                <Field label="Tagline" value={form.tagline ?? brand.tagline ?? ''} onChange={value => updateIdentity('tagline', value)} maxLength={180} note="A short line that describes your brand." />
-                <BrandImage title="Store logo" value={form.logoUrl ?? brand.logo} onChange={value => updateIdentity('logoUrl', value)} onBusyChange={uploadBusy} disabled={saving || uploading} note="A transparent PNG works well. Used in the header, mobile menu and new invoices." uploadPath={uploadPath} />
-                <BrandImage title="Browser icon" value={form.faviconUrl ?? brand.favicon} onChange={value => updateIdentity('faviconUrl', value)} onBusyChange={uploadBusy} disabled={saving || uploading} note="Use a square PNG or JPG, ideally 256 x 256 pixels." uploadPath={uploadPath} />
-                <div className="store-settings__tip"><BadgeCheck size={19} /><p>Identity changes apply across desktop and mobile. Existing order invoices keep their original seller information.</p></div>
-                <Toggle label="Use this identity across all themes" checked={!!form.brandIdentityEnabled} onChange={value => value ? updateIdentity('storeName', form.storeName) : update('brandIdentityEnabled', false)} note="Turn off to use the logo and name saved in Website Designer. Business and invoice details stay in Settings." />
+                <Field label="Store Name" value={form.storeName || ''} onChange={value => updateIdentity('storeName', value)} required maxLength={100} />
+                <Field label="Tagline" value={form.tagline ?? brand.tagline ?? ''} onChange={value => updateIdentity('tagline', value)} maxLength={180} />
+                <BrandImage title="Store logo" value={form.logoUrl ?? brand.logo} onChange={value => updateIdentity('logoUrl', value)} onBusyChange={uploadBusy} disabled={saving || uploading} note="Transparent PNG recommended; used on the storefront and new invoices." uploadPath={uploadPath} />
+                <BrandImage title="Browser icon" value={form.faviconUrl ?? brand.favicon} onChange={value => updateIdentity('faviconUrl', value)} onBusyChange={uploadBusy} disabled={saving || uploading} note="Square PNG or JPG; recommended 256 x 256 px." uploadPath={uploadPath} />
+                <div className="store-settings__tip"><BadgeCheck size={17} /><p>Existing invoices keep their original seller details.</p></div>
+                <Toggle label="Use this identity across all themes" checked={!!form.brandIdentityEnabled} onChange={value => value ? updateIdentity('storeName', form.storeName) : update('brandIdentityEnabled', false)} note="Off uses Website Designer’s name and logo." />
               </>}
               {active === 'business' && <>
                 {input('legalBusinessName', 'Legal business name', { maxLength: 160, note: 'Registered seller name, if different from your store name.' })}
@@ -142,7 +138,7 @@ export default function Settings({ route = '' }) {
                 {input('invoiceNote', 'Invoice footer note', { multiline: true, maxLength: 500, note: 'Optional message printed on new invoices and PDF downloads.' })}
               </>}
               {active === 'contact' && <>
-                {toggle('contactDetailsEnabled', 'Use these contact details in the footer', 'Turn off to use the contact details saved in Website Designer. The contact page and invoices always use Settings.')}
+                {toggle('contactDetailsEnabled', 'Use these contact details in the footer', 'Off uses Website Designer in the footer. Contact page and invoices use Settings.')}
                 {input('contactEmail', 'Contact Email', { type: 'email', maxLength: 254 })}
                 {input('contactPhone', 'Contact Phone', { type: 'tel', maxLength: 24 })}
                 {input('whatsappNumber', 'WhatsApp Number', { type: 'tel', maxLength: 24, note: 'Include the country code for international numbers.' })}
@@ -158,7 +154,7 @@ export default function Settings({ route = '' }) {
                 {number('freeShippingMinAmount', 'Free Shipping Minimum Amount', '0 gives free delivery on every order.')}
                 {number('platformFee', 'Platform Fee', 'Shown separately in the bag, checkout and invoice. 0 removes the fee.')}
                 <DeliverySettings form={form} update={update} apiBase={settingsApi} />
-                <div className="store-settings__tip"><Truck size={19} /><p>Checkout calculates these amounts on the server. Existing orders keep the charges agreed when they were placed.</p></div>
+                <div className="store-settings__tip"><Truck size={17} /><p>New charges apply to new orders. Existing order totals stay unchanged.</p></div>
               </>}
               {active === 'payments' && <>
                 {!form.codEnabled && !(form.razorpayEnabled && paymentReadiness?.configured && ['upiEnabled', 'cardPaymentEnabled', 'netBankingEnabled', 'walletEnabled'].some(key => form[key])) && <p role="status" className="store-settings__tip">No payment method is currently available. Customers will be unable to complete checkout until a method is enabled.</p>}
@@ -203,7 +199,7 @@ export default function Settings({ route = '' }) {
                   {number('returnWeightToleranceGrams', 'Weight tolerance (grams)', 'Differences above this value create a manual-review flag.', { max: 10000, step: 1 })}
                   {number('highValueVerificationThreshold', 'High-value verification threshold', 'Orders at or above this amount require dispatch weight even when the general weight rule is off.', { step: 1 })}
                 </div></details>
-                {POLICIES.map(([key, label]) => <div key={key} className="store-settings__wide">{input(key, label, { multiline: true, maxLength: 20000, rows: 5 })}</div>)}
+                {POLICIES.map(([key, label]) => <details key={key} className="store-settings__advanced"><summary>{label}</summary><div className="store-settings__policy-editor">{input(key, label, { multiline: true, maxLength: 20000, rows: 5 })}</div></details>)}
               </>}
               {active === 'social' && <>
                 {['instagram', 'facebook', 'youtube', 'pinterest'].map(network => <Field key={network} label={network[0].toUpperCase() + network.slice(1) + ' Link'} type="url" value={form.socialLinks?.[network] || ''} onChange={value => update('socialLinks', { ...form.socialLinks, [network]: value })} placeholder="https://" />)}
@@ -212,9 +208,9 @@ export default function Settings({ route = '' }) {
                 <div className="store-settings__tip"><Link2 size={19} /><p>These are public storefront links. Connect messaging and publishing accounts from <a href="/admin/social">Social studio</a>.</p></div>
               </>}
               {active === 'website' && <>
-                {toggle('occasionShoppingEnabled', 'Shop by occasion', 'Desktop and mobile shortcuts use Occasion values from this store’s published products. Empty occasions are hidden.')}
-                {toggle('recentlyViewedEnabled', 'Recently viewed products', 'Continue browsing on desktop and mobile. History stays on the shopper’s device, is limited to 12 products and can be cleared.')}
-                {toggle('completeLookEnabled', 'Complete the look', 'Show optional matching items on product details. Set matching products in the product editor, or use occasion, colour and tag matching.')}
+                {toggle('occasionShoppingEnabled', 'Shop by occasion', 'Shortcuts use published products’ Occasion values; empty occasions stay hidden.')}
+                {toggle('recentlyViewedEnabled', 'Recently viewed products', 'Shows up to 12 products on the shopper’s device. Shoppers can clear history.')}
+                {toggle('completeLookEnabled', 'Complete the look', 'Shows related items chosen in the product editor or matched by occasion, colour and tags.')}
                 <Toggle label="Show announcement bar" checked={form.announcementEnabled ?? true} onChange={value => update('announcementEnabled', value)} note="Displays above the desktop navigation and in the mobile shopping menu." />
                 {input('announcementText', 'Announcement text', { maxLength: 240, placeholder: 'Leave empty for an automatic free delivery message', note: 'Clear this field to use a message based on your delivery settings.' })}
                 {input('seoTitle', 'Browser page title', { maxLength: 100, note: 'Leave empty to use your store name.' })}
@@ -224,14 +220,13 @@ export default function Settings({ route = '' }) {
                 <div className="store-settings__tip"><Globe2 size={19} /><p>Colours, typography, navigation and homepage layouts are available in <a href="/admin/customization">Website Designer</a>.</p></div>
               </>}
             </fieldset>
-            {smsOpened && !route.startsWith('/seller') && <div hidden={active !== 'sms'} className="p-5"><SmsSettings apiBase={settingsApi} onDirtyChange={setSmsDirty} onBusyChange={setSmsBusy} /></div>}
-            {alertsOpened && <div hidden={active !== 'order-alerts'} className="p-5"><OrderAlertSettings key={settingsApi} apiBase={settingsApi} onDirtyChange={setAlertsDirty} onBusyChange={setAlertsBusy} /></div>}
-            {trafficOpened && <div hidden={active !== 'traffic'} className="p-5"><TrafficSettings key={settingsApi} apiBase={settingsApi} onDirtyChange={setTrafficDirty} onBusyChange={setTrafficBusy} /></div>}
-            {rentalsOpened && <div className="p-5" hidden={active !== 'rentals'}><RentalSettings apiBase={route.startsWith('/seller') ? '/seller/rentals' : '/admin/rentals'} onDirtyChange={setRentalsDirty} onBusyChange={setRentalsBusy} /></div>}
+            {smsOpened && !route.startsWith('/seller') && <div hidden={active !== 'sms'} className="store-settings__subpanel"><SmsSettings apiBase={settingsApi} onDirtyChange={setSmsDirty} onBusyChange={setSmsBusy} /></div>}
+            {alertsOpened && <div hidden={active !== 'order-alerts'} className="store-settings__subpanel"><OrderAlertSettings key={settingsApi} apiBase={settingsApi} onDirtyChange={setAlertsDirty} onBusyChange={setAlertsBusy} /></div>}
+            {trafficOpened && <div hidden={active !== 'traffic'} className="store-settings__subpanel"><TrafficSettings key={settingsApi} apiBase={settingsApi} onDirtyChange={setTrafficDirty} onBusyChange={setTrafficBusy} /></div>}
           </div>
         </div>
-        {!['sms', 'order-alerts', 'traffic', 'rentals'].includes(active) && <div className="store-settings__savebar">
-          <div aria-live="polite">{message ? <p className={message.error ? 'is-error' : 'is-success'} role={message.error ? 'alert' : 'status'}>{!message.error && <Check size={17} />}{message.text}</p> : <p>{dirty ? 'You have unsaved changes' : 'All changes saved'}<small>{dirty ? 'Save to apply your updates across the store.' : 'Changes apply after you save.'}</small></p>}{message?.conflict && <button type="button" disabled={saving} onClick={reloadLatest} className="text-xs font-bold text-wine underline">Reload latest and keep my edits</button>}</div>
+        {!['sms', 'order-alerts', 'traffic'].includes(active) && <div className="store-settings__savebar">
+          <div aria-live="polite">{message ? <p className={message.error ? 'is-error' : 'is-success'} role={message.error ? 'alert' : 'status'}>{!message.error && <Check size={17} />}{message.text}</p> : <p>{dirty ? 'Unsaved changes' : 'All changes saved'}</p>}{message?.conflict && <button type="button" disabled={saving} onClick={reloadLatest} className="text-xs font-bold text-wine underline">Reload latest and keep my edits</button>}</div>
           <div className="store-settings__save-actions"><button type="button" className="admin-btn-ghost" disabled={!dirty || saving || uploading} onClick={discard}><RotateCcw size={16} /><span>Discard</span></button><button type="submit" className="admin-btn" disabled={!dirty || saving || uploading}><Save size={17} />{uploading ? 'Uploading...' : saving ? 'Saving...' : 'Save Settings'}</button></div>
         </div>}
       </form>
@@ -246,7 +241,7 @@ function Toggle({ label, checked, onChange, note, disabled }) {
   return <label className="store-settings__toggle"><span><strong>{label}</strong>{note && <small>{note}</small>}</span><input type="checkbox" aria-label={label} checked={checked} disabled={disabled} onChange={event => onChange(event.target.checked)} /><i aria-hidden="true" /></label>;
 }
 function BrandImage({ title, value, onChange, note, onBusyChange, disabled, uploadPath }) {
-  return <div className="store-settings__image"><h3><ImagePlus size={18} />{title}</h3><p>{note}</p><ImageUploader value={value ? [{ url: value }] : []} onChange={files => onChange(files[0]?.url || '')} uploadContext="website-branding" uploadPath={uploadPath} showPrimaryControl={false} replaceOnUpload onBusyChange={onBusyChange} disabled={disabled} label={'Upload ' + title.toLowerCase()} maxUploadMb={5} helpText="PNG, JPG or WebP, up to 5 MB. Choose a new image to replace the current one." /><Field label={title + ' URL'} value={value || ''} onChange={onChange} placeholder="https://" /></div>;
+  return <div className="store-settings__image"><h3><ImagePlus size={16} />{title}</h3><p>{note}</p><ImageUploader value={value ? [{ url: value }] : []} onChange={files => onChange(files[0]?.url || '')} uploadContext="website-branding" uploadPath={uploadPath} showPrimaryControl={false} replaceOnUpload onBusyChange={onBusyChange} disabled={disabled} label={'Upload ' + title.toLowerCase()} maxUploadMb={5} helpText="PNG, JPG or WebP · Up to 5 MB" /><Field label={title + ' URL'} value={value || ''} onChange={onChange} placeholder="https://" /></div>;
 }
 function GatewayStatus({ readiness }) {
   if (!readiness) return <span className="store-settings__pill">Check unavailable</span>;

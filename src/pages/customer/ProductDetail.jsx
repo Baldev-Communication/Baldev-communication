@@ -1,10 +1,10 @@
+import { rentalShoppingEnabled } from '../../config/features';
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { skipToken } from '@reduxjs/toolkit/query';
 import { AlertCircle, CheckCircle2, ChevronLeft, ChevronRight, MapPin, RotateCcw, Ruler, Share2, ShieldCheck, Star, Truck, X } from 'lucide-react';
 import LazyBoundary from '../../components/ui/LazyBoundary';
 import { ProductVisual } from '../../components/product/ProductCard';
 import ProductDetailPage from '../../components/product/ProductDetailPage';
-import RentalOffer from '../../components/rentals/RentalOffer';
 import CompleteLook from '../../components/product/CompleteLook';
 import { isTechnologyCatalog } from '../../utils/catalogPresentation';
 import PublicReviewCard from '../../components/product/PublicReviewCard';
@@ -223,8 +223,8 @@ export default function ProductDetail({ navigate: navigateRoute, route = '' }) {
   const selectedStock = hasManagedVariants(product || {}) && selectionIncomplete
     ? null
     : variantStock(product || {}, { size, color, variantId: selectedVariant?._id });
-  const rentalOnly = settingsData?.commerceMode === 'RENTAL_ONLY' || product?.commerceMode === 'RENTAL_ONLY';
-  const isOutOfStock = rentalOnly || (selectedStock !== null && Number(selectedStock) <= 0);
+  const rentalOnly = rentalShoppingEnabled && (settingsData?.commerceMode === 'RENTAL_ONLY' || product?.commerceMode === 'RENTAL_ONLY');
+  const isOutOfStock = isUnavailable(product) || rentalOnly || (selectedStock !== null && Number(selectedStock) <= 0);
   const sizeStock = (item) => {
     if (!hasManagedVariants(product || {})) return null;
     const matching = activeVariants(product || {}).filter((variant) => (
@@ -929,7 +929,6 @@ export default function ProductDetail({ navigate: navigateRoute, route = '' }) {
 
           {actionMessage && <p className="rounded-[14px] bg-[#fff4f7] px-4 py-3 text-[12px] font-semibold leading-5 text-rose md:rounded-2xl" role="status">{actionMessage}</p>}
 
-          <RentalOffer productId={productId} navigate={navigate} />
 
           <section className="rounded-[14px] bg-white p-4 md:space-y-2 md:rounded-none md:bg-transparent md:p-0 md:pt-2">
             <div className="flex items-center gap-2">
@@ -1116,7 +1115,7 @@ export default function ProductDetail({ navigate: navigateRoute, route = '' }) {
 function DetailsCard({ product, returnPolicy }) {
   const selectableSizes = getSelectableSizes(product);
   const specifications = [
-    ...(Array.isArray(product.specifications) ? product.specifications : []).filter((item) => item?.label && item?.value).map((item) => [item.label, [item.value, item.unit].filter(Boolean).join(' ')]),
+    ...(Array.isArray(product.specifications) ? product.specifications : []).filter((item) => item?.label && item?.value && item.active !== false && item.showOnDetail !== false).map((item) => [item.label, [item.value, item.unit].filter(Boolean).join(' ')]),
     ['Category', product.category],
     ['Subcategory', product.subCategory],
     ...(!isTechnologyCatalog(product) ? [['Fabric', product.fabric], ['Occasion', product.occasion]] : []),

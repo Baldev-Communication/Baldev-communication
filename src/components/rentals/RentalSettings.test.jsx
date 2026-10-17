@@ -26,7 +26,7 @@ test('explicit storefront switch enables rentals and restores the last enabled m
   const toggle = await screen.findByRole('checkbox', { name: 'Enable rental shopping' });
   expect(toggle).toBeChecked(); fireEvent.click(toggle);
   expect(screen.getByLabelText('Business operations')).toHaveValue('SALE_ONLY');
-  expect(screen.getByText(/Existing bookings, pickup, returns and deposits remain accessible/)).toBeInTheDocument();
+  expect(screen.getByText(/Existing bookings, returns and deposits stay accessible/)).toBeInTheDocument();
   fireEvent.click(toggle); expect(screen.getByLabelText('Business operations')).toHaveValue('RENTAL_ONLY');
   expect(screen.getByLabelText(/Rental terms/)).toHaveValue(data.policy.terms);
 });

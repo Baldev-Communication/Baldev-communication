@@ -10,6 +10,7 @@ import BarcodeScanner from './BarcodeScanner';
 import CompleteLookPicker from './CompleteLookPicker';
 import { applySmartPatch } from '../../utils/productSmartFill';
 import { essentialTechnologySpecifications, isTechnologyCatalog } from '../../utils/catalogPresentation';
+import { changeProductCategory, draftAttributeDefinitions, draftCategoryDefinition } from '../../utils/draftAttributes';
 import { normalizeImageEntries, normalizeImageUrl, normalizeVideoEntries } from '../../services/normalize';
 import {
   applyAssistantSuggestions,
@@ -98,6 +99,7 @@ const emptyProduct = {
 
 export default function ProductForm({
   mode = 'Add',
+  compact = false,
   productId,
   onSaved,
   onCancel,
@@ -521,6 +523,7 @@ export default function ProductForm({
       const selectedCategory = categories.find((category) => String(category._id) === String(form.category));
       const payload = {
         ...form,
+        commerceMode: 'SALE_ONLY',
         images: prepareImages(form.images),
         videos: prepareVideos(form.videos),
         price,
@@ -655,20 +658,21 @@ export default function ProductForm({
 
   return (
     <form ref={formRef} onSubmit={submit} aria-busy={saving || mediaActivity.images || mediaActivity.videos} className="admin-product-form">
+      <div className={compact ? 'product-form-toolbar' : 'contents'}>
       <div className="product-form-commandbar">
-        <div><p>Editing experience</p><div className="product-form-mode" aria-label="Product form detail level"><button type="button" aria-pressed={viewMode === 'essential'} onClick={() => setViewMode('essential')}>Essentials</button><button type="button" aria-pressed={viewMode === 'advanced'} onClick={() => setViewMode('advanced')}><SlidersHorizontal size={15} /> Advanced</button></div></div>
-        <div className="product-form-quality"><span className={quality.score >= 80 ? 'is-ready' : ''}>{quality.score}</span><div><strong>Listing quality</strong><small>{quality.next || 'Ready for customers'}</small></div></div>
-        <div className="product-form-commandbar__actions">
+        <div>{!compact && <p>Editing experience</p>}<div className="product-form-mode" aria-label="Product form detail level"><button type="button" aria-pressed={viewMode === 'essential'} onClick={() => setViewMode('essential')}>Essentials</button><button type="button" aria-pressed={viewMode === 'advanced'} onClick={() => setViewMode('advanced')}><SlidersHorizontal size={15} /> Advanced</button></div></div>
+        {!compact && <div className="product-form-quality"><span className={quality.score >= 80 ? 'is-ready' : ''}>{quality.score}</span><div><strong>Listing quality</strong><small>{quality.next || 'Ready for customers'}</small></div></div>}
+        {(!compact || mode === 'Add') && <div className="product-form-commandbar__actions">
           {mode === 'Add' && <button type="button" className="admin-btn-ghost" onClick={() => setCopyOpen(true)}><Copy size={16} /> Copy existing</button>}
-          <button type="button" className="admin-btn-ghost" onClick={() => setPreviewOpen(true)}><Eye size={16} /> Preview</button>
-        </div>
+          {!compact && <button type="button" className="admin-btn-ghost" onClick={() => setPreviewOpen(true)}><Eye size={16} /> Preview</button>}
+        </div>}
       </div>
       <div className="admin-form-guide" role="status">
         <div className="admin-form-guide__progress">
           <span className={`admin-form-guide__count${readyCount === checklist.length ? ' is-ready' : ''}`}>
             {readyCount === checklist.length ? <CircleCheck className="h-4 w-4" /> : `${readyCount}/${checklist.length}`}
           </span>
-          <span>{readyCount === checklist.length ? 'Ready to save' : 'Still needed'}</span>
+          <span>{readyCount === checklist.length ? 'Ready to save' : compact ? 'Checks' : 'Still needed'}</span>
         </div>
         <div className="admin-form-guide__chips">
           {checklist.map((item) => {
@@ -691,6 +695,7 @@ export default function ProductForm({
           })}
         </div>
       </div>
+      </div>
 
       {recoveryDraft && <div role="alert" className={`admin-form-hint ${recoveryDraft.stale ? 'border-amber-300 bg-amber-50' : ''}`}>
         <div><h3>Unsaved browser draft found</h3><p>{recoveryDraft.stale ? 'The saved product changed after this browser draft was created. Review carefully before applying it.' : `Restore edits${recoveryDraft.savedAt ? ` saved ${new Date(recoveryDraft.savedAt).toLocaleString('en-IN')}` : ''}, or discard them and keep the latest server version.`}</p></div>
@@ -707,12 +712,12 @@ export default function ProductForm({
       <ProductSmartFill key={`${apiPrefix}-${productId || 'new'}-${smartFillReset}`} form={form} categories={categories} structure={structure} apiPrefix={apiPrefix}
         disabled={saving || mediaActivity.images || mediaActivity.videos || !draftReady || !!loadError || !structure}
         onApply={(patch, undo) => { setForm(current => applySmartPatch(current, patch, undo)); setErrors({}); }} />
-      {activeAttributeDefinitions.length > 0 && <Section id="product-specifications" title="Product specifications" note={technologyCatalog ? 'Choose a category to see its device or accessory specifications.' : 'Specifications for the selected category.'}>
+      {activeAttributeDefinitions.length > 0 && <Section id="product-specifications" title="Product specifications" note="Specifications for the selected category.">
         {errors.attributes && <p role="alert" data-error-field="attributes" tabIndex="-1" className="admin-form-hint lg:col-span-2">{errors.attributes}</p>}
         {activeAttributeDefinitions.filter((attribute) => viewMode === 'advanced' || showAllSpecifications || attribute.required || String(form.attributeValues?.[attribute.key] ?? '').trim() || (technologyCatalog && essentialTechnologySpecifications.has(attribute.key))).map((attribute) => <DynamicAttributeField key={attribute.key} attribute={attribute} value={form.attributeValues?.[attribute.key] ?? attribute.defaultValue ?? ''} onChange={value => updateAttribute(attribute.key, value)} />)}
         {viewMode === 'essential' && activeAttributeDefinitions.some((attribute) => !attribute.required) && <button type="button" className="admin-btn-ghost lg:col-span-2 w-fit" aria-expanded={showAllSpecifications} onClick={() => setShowAllSpecifications(value => !value)}>{showAllSpecifications ? 'Show fewer specifications' : 'Show all specifications'}</button>}
       </Section>}
-      <Section id="product-basics" step="01" title="Basic Information" note="Name, SKU and the story customers will read.">
+      <Section id="product-basics" step="01" title={compact ? 'Basic details' : 'Basic Information'} note="Name, SKU and the story customers will read.">
         <Input field="name" label="Product name" value={form.name} onChange={(value) => update('name', value)} error={errors.name} placeholder={technologyCatalog ? 'Apple iPhone 15 128 GB or Samsung 25W USB-C Charger' : 'Enter the product name'} required />
         {viewMode === 'advanced' && <Input label="Slug" value={form.slug} onChange={(value) => update('slug', value)} placeholder="leave blank for auto slug" />}
         <Input field="sku" label="SKU" value={form.sku} onChange={(value) => update('sku', value)} error={errors.sku} placeholder="SC-0101" />
@@ -735,15 +740,13 @@ export default function ProductForm({
       {duplicateReview.loading && <p className="product-form-sync" role="status">Checking SKU, barcode and similar product names…</p>}
       {!!duplicateReview.conflicts.length && <div className="product-duplicate-warning" role="status"><strong>{duplicateReview.conflicts.some((item) => item.blocking) ? 'Resolve duplicate catalog values' : 'Similar product found'}</strong>{duplicateReview.conflicts.map((item) => <p key={item.id}><span>{item.name}</span> matches {item.reasons.join(' and ')}. <a href={`${apiPrefix}/products/edit?id=${item.id}`}>Review product</a></p>)}</div>}
 
-      <Section id="product-pricing" step="02" title="Category, Pricing and Inventory" note="Where it sits in the catalog and how it is sold.">
-        <label className="admin-field"><span>Available for</span><select className="admin-field__control" value={form.commerceMode || 'SALE_ONLY'} onChange={event => setForm(current => ({ ...current, commerceMode: event.target.value }))}><option value="SALE_ONLY">Sale only</option><option value="RENTAL_ONLY">Rental only</option><option value="SALE_AND_RENTAL">Sale and rental</option></select><small>Rental rates and physical pieces are configured in Rental studio. Sale stock remains separate.</small></label>
+      <Section id="product-pricing" step="02" title={compact ? 'Category, pricing & stock' : 'Category, Pricing and Inventory'} note="Where it sits in the catalog and how it is sold.">
         <label className="admin-field">
           <span>Category<em>*</em></span>
           <select
             value={form.category}
             onChange={(event) => {
-              const category = categories.find((item) => String(item._id) === String(event.target.value));
-              setForm((current) => ({ ...current, category: event.target.value, subCategory: '', categoryDefinitionKey: category?.definitionKey || definitionKey(category?.name) }));
+              setForm((current) => changeProductCategory(current, event.target.value, structure, categories));
               clearErrors(setErrors, 'category', 'attributes');
             }}
             className={`admin-field__control${errors.category ? ' is-error' : ''}`}
@@ -836,15 +839,15 @@ export default function ProductForm({
         ) : null}
       </Section>
 
-      <Section id="product-media" step="03" title={technologyCatalog ? 'Product photos, videos and colours' : 'Product Images, Sizes and Colors'} note="Photos first, then the options customers pick.">
+      <Section id="product-media" step="03" title={compact ? 'Photos & options' : technologyCatalog ? 'Product photos, videos and colours' : 'Product Images, Sizes and Colors'} note="Photos first, then the options customers pick.">
         <div className="lg:col-span-2" data-error-field="images" tabIndex="-1">
-          <div className="admin-form-hint mb-3">
+          {!compact && <div className="admin-form-hint mb-3">
             <h3>Product images</h3>
             <p>Click the upload box or drag images here. Keep up to 20 clear product photos; add up to 8 at a time. JPG, JPEG, PNG or WEBP files up to 20MB are compressed before upload.</p>
-          </div>
+          </div>}
           <ImageUploader
-            label="Choose Product Images"
-            helpText="Uploaded images are saved on the backend and only image URLs are stored in MongoDB."
+            label={compact ? 'Add product photos' : 'Choose Product Images'}
+            helpText="JPG, PNG or WEBP · 20 MB each · 8 at a time · Compressed before upload"
             multiple
             maxFiles={20}
             uploadContext="products"
@@ -861,13 +864,13 @@ export default function ProductForm({
           {errors.images && <p className="admin-field__error mt-2">{errors.images}</p>}
         </div>
         {viewMode === 'advanced' && <div className="lg:col-span-2">
-          <div className="admin-form-hint mb-3">
+          {!compact && <div className="admin-form-hint mb-3">
             <h3>Product videos</h3>
             <p>Optional. Upload up to 2 short videos. MP4, WEBM or MOV. Max 20MB each.</p>
-          </div>
+          </div>}
           <VideoUploader
-            label="Choose Product Videos"
-            helpText="Videos are uploaded to the backend and only video URLs are stored in MongoDB."
+            label={compact ? 'Add product videos' : 'Choose Product Videos'}
+            helpText="Optional · MP4, WEBM or MOV · Up to 2 videos, 20 MB each"
             multiple
             maxFiles={2}
             uploadContext="product-videos"
@@ -1464,19 +1467,7 @@ function variantCode(variant = {}, index = 0) {
 }
 
 function getActiveAttributeDefinitions(structure, categories = [], form = {}) {
-  const categoryDefinition = findCategoryDefinition(structure, categories, form);
-  const merged = new Map((structure?.attributes || []).map((item) => [item.key, item]));
-  const chain = [];
-  let cursor = categoryDefinition;
-  while (cursor && chain.length < 12) {
-    chain.unshift(cursor);
-    const parentKey = cursor.parentKey;
-    cursor = parentKey ? (structure?.categoryDefinitions || []).find((item) => item.key === parentKey) : null;
-  }
-  chain.forEach((layer) => (layer.attributes || []).forEach((item) => {
-    if (typeof item === 'object' && item.key) merged.set(item.key, { ...(merged.get(item.key) || {}), ...item });
-  }));
-  return Array.from(merged.values()).filter((item) => item.active !== false).sort((left, right) => Number(left.sortOrder || 0) - Number(right.sortOrder || 0));
+  return draftAttributeDefinitions(structure, categories, form);
 }
 
 function getEffectiveVariantConfig(structure, categories = [], form = {}) {
@@ -1496,19 +1487,7 @@ function getEffectiveVariantConfig(structure, categories = [], form = {}) {
 }
 
 function findCategoryDefinition(structure, categories = [], form = {}) {
-  const definitions = structure?.categoryDefinitions || [];
-  const selectedCategory = categories.find((category) => String(category._id) === String(form.category));
-  const subcategory = String(form.subCategory || '').trim().toLowerCase();
-  if (subcategory) {
-    const child = definitions.find((item) => item.key === definitionKey(subcategory) || String(item.name || '').trim().toLowerCase() === subcategory);
-    if (child) return child;
-  }
-  const lookupKeys = [form.categoryDefinitionKey, selectedCategory?.definitionKey, definitionKey(selectedCategory?.name)].filter(Boolean);
-  for (const lookupKey of lookupKeys) {
-    const match = definitions.find((item) => item.key === lookupKey);
-    if (match) return match;
-  }
-  return null;
+  return draftCategoryDefinition(structure, categories, form);
 }
 
 function getConfiguredSubcategories(structure, categories = [], form = {}, saved = []) {
@@ -1681,6 +1660,7 @@ function buildDraftPayload(form, overrides = {}) {
   const payload = {
     ...form,
     ...overrides,
+    commerceMode: 'SALE_ONLY',
     images: prepareImages(form.images),
     videos: prepareVideos(form.videos),
     price: Number(form.price || 0),

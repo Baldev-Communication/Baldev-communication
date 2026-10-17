@@ -72,6 +72,19 @@ export function automaticSpecificationPatch(rows, form) {
   return selectedSmartPatch(rows, [...candidates, ...related].map(row => row.key), form);
 }
 
+// Draft creation fills empty catalog content and cited specs together. Commercial
+// values and item-specific promises always stay in the subsequent manual step.
+export function automaticDraftPatch(rows, form) {
+  const specifications = automaticSpecificationPatch(rows, form);
+  const content = new Set(['name', 'brand', 'category', 'subCategory', 'shortDescription', 'description', 'tags', 'highlights', 'metaTitle', 'metaDescription', 'metaKeywords', 'sku']);
+  const stated = new Set(['caption', 'on_screen', 'speech']);
+  const manual = new Set(['condition', 'device_lock', 'country_of_origin', 'regulatory_certification', 'sar_value', 'gtin', 'mpn', 'warranty', 'warranty_type', 'warranty_terms', 'box_contents', 'colour']);
+  const additional = rows.filter(row => row.empty && !row.evidence?.reviewRequired && (
+    content.has(row.key) || (row.key.startsWith('attributeValues.') && stated.has(row.evidence?.source) && !manual.has(row.key.split('.')[1]))
+  ));
+  return selectedSmartPatch(rows, [...specifications, ...additional].map(row => row.key), form);
+}
+
 export function suggestionRows(result, baseline, { categories = [], structure, priceField = 'price', seo = true } = {}) {
   const data = { ...result.suggestion };
   delete data.sku;

@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Archive, ArrowDown, ArrowUp, Eye, FolderTree, LoaderCircle, Package, Pencil, Plus, RotateCcw, Trash2, X } from 'lucide-react';
+import { AdminTable } from './Products';
 import CategoryForm from '../../components/admin/CategoryForm';
 import SearchFilterBar from '../../components/admin/SearchFilterBar';
 import StatusBadge from '../../components/admin/StatusBadge';
 import PageHeader from '../../components/admin/PageHeader';
-import { AdminTable } from './Products';
 import api from '../../services/api';
 import { normalizeImageUrl } from '../../services/normalize';
 import { asCatalogList } from '../../utils/catalogOptions';

@@ -7,6 +7,7 @@ import api from '../../services/api';
 import { districtsForState, INDIAN_STATES } from '../../data/indiaLocations';
 import { lookupPincode } from '../../utils/indiaPincode';
 import { digitsOnly, isValidIndianMobile, PHONE_VALIDATION_MESSAGE } from '../../utils/phoneInput';
+import LocationPicker from '../../components/location/LocationPicker';
 import './Profile.css';
 import './AddressManagement.css';
 import '../../styles/MobileShoppingTheme.css';
@@ -211,18 +212,18 @@ export function AddressForm({ form, setForm, onSubmit, message, editing, onCance
   const lookupToken = useRef(0);
   const autoPinRef = useRef('');
 
-  const update = (field, value) => setForm((current) => ({ ...current, [field]: value }));
+  const update = (field, value) => setForm((current) => ({ ...current, [field]: value, ...(['houseNo', 'area', 'pincode', 'city', 'state'].includes(field) && current[field] !== value ? { location: null } : {}) }));
 
   const selectState = (state) => {
     setForm((current) => {
       const nextDistricts = districtsForState(state);
       const city = nextDistricts.includes(current.city) ? current.city : '';
-      return { ...current, state, city, pincode: city ? current.pincode : '' };
+      return { ...current, state, city, pincode: city ? current.pincode : '', ...(current.state !== state ? { location: null } : {}) };
     });
   };
 
   const selectDistrict = (district) => {
-    setForm((current) => ({ ...current, city: district }));
+    setForm((current) => ({ ...current, city: district, ...(current.city !== district ? { location: null } : {}) }));
   };
 
   useEffect(() => {
@@ -334,6 +335,7 @@ export function AddressForm({ form, setForm, onSubmit, message, editing, onCance
         </div>
 
         <div className="space-y-3 border-t border-theme-border pt-5">
+          <details><summary className="cursor-pointer text-sm font-bold">Delivery pin (optional)</summary><div className="mt-2"><LocationPicker value={form.location} disabled={saving} onChange={point => update('location', point)} /></div></details>
           <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-gold">Address type</p>
           <div className="grid grid-cols-2 gap-3">
             {[

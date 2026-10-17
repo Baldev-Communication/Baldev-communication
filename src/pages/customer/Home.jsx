@@ -1,3 +1,4 @@
+import { rentalShoppingEnabled } from '../../config/features';
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { AlertCircle, Check, ChevronLeft, ChevronRight, Gem, RotateCcw, ShieldCheck, Sparkles, Star, Truck } from 'lucide-react';
 import { useMediaQuery } from '@mantine/hooks';
@@ -583,7 +584,7 @@ function MobileCompactProductCard({ product, navigate, sectionTitle, sectionId, 
   const image = getPrimaryImageUrl(product.images);
   const cartItem = cart.getCartItem(product);
   const availableStock = wishlistStock(product);
-  const rental = product.commerceMode === 'RENTAL_ONLY';
+  const rental = rentalShoppingEnabled && (product.commerceMode === 'RENTAL_ONLY');
   const unavailable = !rental && (isUnavailable(product) || availableStock === 0);
   const needsSize = getSelectableSizes(product).length > 0;
   const wishlistPending = wishlistBusy || (wishlist.pendingIds || []).some((id) => String(id) === String(productId));

@@ -6,11 +6,11 @@ import {
 } from 'lucide-react';
 import api from '../../services/api';
 import ConfirmModal from '../../components/admin/ConfirmModal';
-import ProductDeleteDialog from '../../components/admin/ProductDeleteDialog';
 import PageHeader from '../../components/admin/PageHeader';
 import StatusBadge from '../../components/admin/StatusBadge';
 import ProductForm from '../../components/admin/ProductForm';
 import BulkCatalogSmartFill from '../../components/admin/BulkCatalogSmartFill';
+import ProductDeleteDialog from '../../components/admin/ProductDeleteDialog';
 import { Select as UiSelect } from '../../components/ui/Field';
 import { fetchCategories } from '../../utils/catalogOptions';
 import { getPrimaryImageUrl } from '../../services/normalize';
@@ -262,7 +262,17 @@ export default function ProductCatalogManager({ route = '/admin/products', apiPr
         <div className="flex items-center gap-2"><button type="button" disabled={page <= 1 || loading} onClick={() => setPage((value) => value - 1)} className="admin-btn-ghost min-h-9 px-3 disabled:opacity-40">Previous</button><span className="min-w-16 text-center font-bold">{page} / {pageCount}</span><button type="button" disabled={page >= pageCount || loading} onClick={() => setPage((value) => value + 1)} className="admin-btn-ghost min-h-9 px-3 disabled:opacity-40">Next</button></div>
       </div>
 
-      {editor && <div className="fixed inset-0 z-[90] bg-black/45 p-2 sm:p-4 lg:p-6"><div className="mx-auto flex h-full w-full max-w-[1180px] flex-col overflow-hidden rounded-[24px] bg-[#fbf7f3] shadow-2xl"><div className="flex items-center justify-between border-b border-theme-border bg-white px-4 py-3 lg:px-6"><div><p className="text-[11px] font-black uppercase tracking-[0.18em] text-wine/60">Catalog editor</p><h2 className="text-xl font-black">{editor.mode === 'Add' ? 'Add product' : 'Edit product'}</h2></div><button type="button" onClick={closeEditor} className="grid h-10 w-10 place-items-center rounded-full border border-theme-border" aria-label="Close product editor"><X className="h-5 w-5" /></button></div><div className="min-h-0 flex-1 overflow-y-auto p-3 sm:p-4 lg:p-6"><ProductForm mode={editor.mode} productId={editor.id} apiPrefix={prefix} uploadPrefix={`${prefix}/uploads`} cancelPath={`${prefix}/products`} onCancel={closeEditor} onSaved={() => { closeEditor(); reload(); }} /></div></div></div>}
+      {editor && <div className="product-editor-overlay">
+        <div className="product-editor-dialog" role="dialog" aria-modal="true" aria-labelledby="product-editor-title">
+          <header className="product-editor-header">
+            <h2 id="product-editor-title">{editor.mode === 'Add' ? 'Add product' : 'Edit product'}</h2>
+            <button type="button" onClick={closeEditor} className="product-editor-close" aria-label="Close product editor"><X size={20} /></button>
+          </header>
+          <div className="product-editor-body">
+            <ProductForm compact mode={editor.mode} productId={editor.id} apiPrefix={prefix} uploadPrefix={`${prefix}/uploads`} cancelPath={`${prefix}/products`} onCancel={closeEditor} onSaved={() => { closeEditor(); reload(); }} />
+          </div>
+        </div>
+      </div>}
 
       <ConfirmModal open={!!confirmTarget} title={confirmTarget?.title} message={confirmTarget?.message} confirmLabel={confirmTarget?.label} onClose={() => setConfirmTarget(null)} onConfirm={async () => { await confirmTarget?.run(); setConfirmTarget(null); }} />
       {deleteTarget && <ProductDeleteDialog product={deleteTarget} productsPath={productsPath} onClose={() => setDeleteTarget(null)} onArchived={reload} onDeleted={(id, mediaCleanup) => {

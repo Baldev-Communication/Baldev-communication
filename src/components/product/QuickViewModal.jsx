@@ -1,3 +1,4 @@
+import { rentalShoppingEnabled } from '../../config/features';
 import { useEffect } from 'react';
 import { ShoppingBag, X } from 'lucide-react';
 import { useCart } from '../../context/CartContext';
@@ -19,7 +20,7 @@ export default function QuickViewModal({ product, onClose, onOpenFull }) {
   const image = normalizeImageUrl(getPrimaryImageUrl(product.images));
   const price = Number(product.sellingPrice ?? product.price ?? 0);
   const original = Number(product.originalPrice ?? price);
-  const rental = product.commerceMode === 'RENTAL_ONLY';
+  const rental = rentalShoppingEnabled && (product.commerceMode === 'RENTAL_ONLY');
   const unavailable = !rental && (isUnavailable(product) || wishlistStock(product) === 0);
   const needsSize = getSelectableSizes(product).length > 0;
   return <div className="fixed inset-0 z-[120] grid place-items-center p-4" role="presentation" onClick={(event) => { event.stopPropagation(); onClose?.(); }}>

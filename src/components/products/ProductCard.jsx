@@ -1,3 +1,4 @@
+import { rentalShoppingEnabled } from '../../config/features';
 import { useState } from 'react';
 import { Heart, ShoppingBag, Star } from 'lucide-react';
 import { useCart } from '../../context/CartContext';
@@ -21,7 +22,7 @@ export default function ProductCard({ product, navigate, onAddToCart, onWishlist
   const isWishlisted = typeof isWishlistedProp === 'boolean'
     ? isWishlistedProp
     : wishlist.items.some(item => wishlistId(item) === productId);
-  const rental = product.commerceMode === 'RENTAL_ONLY';
+  const rental = rentalShoppingEnabled && (product.commerceMode === 'RENTAL_ONLY');
   const unavailable = !rental && isUnavailable(product);
   const stock = rental ? null : wishlistStock(product);
   const options = wishlistOptions(product);

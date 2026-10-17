@@ -78,7 +78,7 @@ test('mobile-store draft content uses electronics wording and hides fashion fiel
   await act(async () => { await Promise.resolve(); });
 });
 
-test('creating photo drafts can open the first draft and run Smart Fill immediately', async () => {
+test('creating photo drafts runs Smart Fill before revealing remaining manual details', async () => {
   URL.createObjectURL = jest.fn(() => 'blob:photo');
   URL.revokeObjectURL = jest.fn();
   const created = { ...draft, _id: 'new-photo-draft', name: '', category: null, images: [{ url: '/uploads/new-photo.webp', primary: true }] };
@@ -90,7 +90,10 @@ test('creating photo drafts can open the first draft and run Smart Fill immediat
   fireEvent.click(screen.getByRole('button', { name: 'Create & start Smart Fill' }));
   await waitFor(() => expect(mockUpload).toHaveBeenCalledWith(expect.objectContaining({ groupMode: 'single' })));
   await waitFor(() => expect(api.post).toHaveBeenCalledWith('/admin/products/smart-fill', expect.objectContaining({ imageUrls: ['/uploads/new-photo.webp'] }), expect.any(Object)));
-  expect(screen.getByText('Review suggestions')).toBeInTheDocument();
+  await waitFor(() => expect(screen.getByLabelText('Product name')).toHaveValue('Apple iPhone 17'));
+  expect(screen.getByLabelText('Selling price')).toBeInTheDocument();
+  expect(screen.getByText(/Review AI results & sources/)).toBeInTheDocument();
+  expect(mockSave).not.toHaveBeenCalled();
 });
 
 test('invalid legacy Condition is visible as a choice and cannot repeatedly fail publication', async () => {

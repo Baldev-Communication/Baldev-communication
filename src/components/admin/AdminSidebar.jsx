@@ -18,7 +18,6 @@ export const ADMIN_LINKS = [
   ['Categories', '/admin/categories'],
   ['Variant Groups', '/admin/variant-groups'],
   ['Orders', '/admin/orders'],
-  ['Rental studio', '/admin/rentals'],
   ['Customers', '/admin/customers'],
   ['Coupons', '/admin/coupons'],
   ['Banners', '/admin/banners'],

@@ -85,13 +85,13 @@ export default function VideoUploader({
         type="button"
         disabled={disabled || uploading}
         onClick={() => inputRef.current?.click()}
-        className="grid min-h-36 w-full place-items-center rounded-2xl border-2 border-dashed border-wine/30 bg-[#fbf8f4] p-5 text-center transition hover:border-wine disabled:cursor-not-allowed disabled:opacity-60"
+        className="admin-media-upload grid min-h-36 w-full place-items-center rounded-2xl border-2 border-dashed border-wine/30 bg-[#fbf8f4] p-5 text-center transition hover:border-wine disabled:cursor-not-allowed disabled:opacity-60"
       >
-        <span>
-          <span className="mx-auto mb-3 grid h-11 w-11 place-items-center rounded-full bg-wine text-lg font-black text-white">+</span>
-          <span className="block text-sm font-black text-charcoal">{uploading ? 'Uploading videos...' : label}</span>
-          <span className="mt-1 block text-xs font-semibold leading-5 text-slate-500">{helpText}</span>
-          <span className="mt-3 inline-flex rounded-xl bg-white px-4 py-2 text-xs font-black text-wine shadow-sm">
+        <span className="admin-media-upload__content">
+          <span className="admin-media-upload__icon mx-auto mb-3 grid h-11 w-11 place-items-center rounded-full bg-wine text-lg font-black text-white">+</span>
+          <span className="admin-media-upload__label block text-sm font-black text-charcoal">{uploading ? 'Uploading videos...' : label}</span>
+          <span className="admin-media-upload__help mt-1 block text-xs font-semibold leading-5 text-slate-500">{helpText}</span>
+          <span className="admin-media-upload__browse mt-3 inline-flex rounded-xl bg-white px-4 py-2 text-xs font-black text-wine shadow-sm">
             Browse Files
           </span>
         </span>

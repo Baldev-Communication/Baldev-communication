@@ -12,7 +12,6 @@ const links = [
   ['Variant Families', '/seller/variant-groups'],
   ['Inventory', '/seller/inventory'],
   ['Orders', '/seller/orders'],
-  ['Rental studio', '/seller/rentals'],
   ['Returns / Exchange', '/seller/returns'],
   ['Customers', '/seller/crm'],
   ['Offers', '/seller/offers'],
@@ -39,7 +38,6 @@ const icons = {
   'Variant Families': GitBranch,
   Inventory: Package,
   Orders: ShoppingBag,
-  'Rental studio': ShoppingBag,
   'Returns / Exchange': RotateCcw,
   Customers: Users,
   Offers: HeartPulse,
@@ -66,15 +64,13 @@ const LINK_FEATURES = {
   '/seller/design': 'advancedCustomization',
   '/seller/social': 'socialStudio',
 };
-const LINK_PERMISSIONS = { '/seller/content': 'content.read', '/seller/traffic': 'reports.read', '/seller/rentals': 'orders.read' };
+const LINK_PERMISSIONS = { '/seller/content': 'content.read', '/seller/traffic': 'reports.read' };
 
 export default function SellerLayout({ children }) {
   const path = useAppPath();
   const { user } = useAuth();
   const stores = useMemo(() => (user?.stores || []).filter((item) => item?.id && item?.status !== 'SUSPENDED'), [user]);
   const [storeId, setStoreId] = useState(() => {
-    const linked = window.location.pathname === '/seller/rentals' ? new URLSearchParams(window.location.search).get('storeId') : '';
-    if (linked && stores.some(item => item.id === linked)) { sessionStorage.setItem('samira_seller_store_id', linked); return linked; }
     return sessionStorage.getItem('samira_seller_store_id') || '';
   });
 

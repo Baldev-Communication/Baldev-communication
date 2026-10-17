@@ -70,11 +70,11 @@ test('technology product form exposes relevant specifications without fashion fi
   expect(screen.getAllByLabelText(/^Brand/)).toHaveLength(1);
 });
 
-test.each(['/admin', '/seller'])('Smart Fill uses %s permissions and saves reviewed listing fields through the normal product endpoint', async (prefix) => {
+test.each(['/admin', '/seller'])('compact product editor uses %s permissions and saves Smart Fill details through the normal product endpoint', async (prefix) => {
   const configuration = { features: { sizing: false }, attributes: [{ key: 'material', label: 'Material', required: true }] };
   api.get.mockImplementation(async path => path === '/catalog-configuration' ? configuration : path.includes('/categories') ? [category] : path.includes('/smart-fill/status') ? { enabled: true } : []);
   api.post.mockImplementation(async path => path.endsWith('/smart-fill') ? { mode: 'ai', suggestion: { name: 'Wine embroidered saree', category: 'cat', price: 899, originalPrice: 1299, description: 'A wine saree with an embroidered border.', shortDescription: 'Wine saree with an embroidered border.', highlights: ['Embroidered border'], attributeValues: { material: 'Georgette' } }, fieldSources: { price: { quote: 'Price: 899', source: 'caption' }, originalPrice: { quote: 'MRP: 1299', source: 'caption' } } } : { _id: 'created' });
-  render(<ProductForm apiPrefix={prefix} uploadPrefix={prefix + '/uploads'} />);
+  render(<ProductForm compact apiPrefix={prefix} uploadPrefix={prefix + '/uploads'} />);
   fireEvent.click(screen.getByRole('button', { name: /Advanced/ }));
   await screen.findByLabelText(/^Material/);
   fireEvent.click(screen.getByRole('button', { name: 'Upload photo ' + prefix + '/uploads' }));
@@ -144,6 +144,17 @@ test('add product points to the first invalid field and cannot save during a med
   expect(screen.getByText('Media upload in progress. Saving will be available when it finishes.')).toBeInTheDocument();
   fireEvent.click(screen.getByRole('button', { name: 'Finish photo upload' }));
   expect(screen.getByRole('button', { name: 'Add Product' })).toBeEnabled();
+});
+
+test('the sales editor converts a reviewed legacy listing to sale-only and offers no rental selector', async () => {
+  const product = { _id: 'legacy', name: 'Phone listing', sku: 'PHONE-1', commerceMode: 'SALE_AND_RENTAL', category: 'cat', price: 900, originalPrice: 1100, stock: 3, description: 'A complete phone listing with a clear description.', images: [{ url: 'https://media.example/phone.jpg' }], sizes: [], colors: [], sizingMode: 'free-size' };
+  api.get.mockImplementation(async path => path === '/catalog-configuration' ? { features: { sizing: false }, attributes: [] } : path.includes('/categories') ? [category] : path === '/admin/products/legacy' ? product : []);
+  api.put.mockResolvedValue({});
+  render(<ProductForm compact mode="Update" productId="legacy" onSaved={jest.fn()} />);
+  await screen.findByDisplayValue('Phone listing');
+  expect(screen.queryByLabelText('Available for')).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'Update Product' }));
+  await waitFor(() => expect(api.put).toHaveBeenCalledWith('/admin/products/legacy', expect.objectContaining({ commerceMode: 'SALE_ONLY', price: 900, stock: 3 })));
 });
 test('enabling size-level inventory preserves existing stock and supports products without a colour option', async () => {
   const dressCategory = { _id: 'dress', name: 'Dresses', isActive: true };

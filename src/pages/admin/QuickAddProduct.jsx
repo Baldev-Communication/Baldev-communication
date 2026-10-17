@@ -5,7 +5,7 @@ import ImageUploader from '../../components/admin/ImageUploader';
 import ProductSmartFill from '../../components/admin/ProductSmartFill';
 import ProductAttributeField from '../../components/admin/ProductAttributeField';
 import { isTechnologyCatalog } from '../../utils/catalogPresentation';
-import { draftAttributeDefinitions, firstInvalidDraftAttribute } from '../../utils/draftAttributes';
+import { changeProductCategory, draftAttributeDefinitions, firstInvalidDraftAttribute } from '../../utils/draftAttributes';
 import { applySmartPatch, automaticSpecificationPatch, smartInputSignature, smartProvider, smartRequest, snapshotForm, suggestionRows } from '../../utils/productSmartFill';
 import PageHeader from '../../components/admin/PageHeader';
 import ImportSizeFields from '../../components/admin/ImportSizeFields';
@@ -114,7 +114,7 @@ export default function QuickAddProduct() {
 
   const update = (field, value) => {
     setForm((current) => {
-      const next = { ...current, [field]: value };
+      const next = field === 'category' ? changeProductCategory(current, value, structure, categories) : { ...current, [field]: value };
       if (field === 'brand' && structure?.attributes?.some(attribute => attribute.key === 'brand')) {
         next.attributeValues = { ...current.attributeValues, brand: value };
       }

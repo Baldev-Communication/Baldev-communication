@@ -4,9 +4,10 @@ import api from '../../services/api';
 import { normalizeImageUrl } from '../../services/normalize';
 import ImageUploader from './ImageUploader';
 import WorkflowSmartFill from './WorkflowSmartFill';
+import CategorySpecificationFields from './CategorySpecificationFields';
 
 const emptyCategory = {
-  name: '', slug: '', parent: '', definitionKey: '', description: '', image: '', metaTitle: '', metaDescription: '', socialImage: '', displayOrder: 0, isActive: true,
+  name: '', slug: '', parent: '', definitionKey: '', customAttributes: [], description: '', image: '', metaTitle: '', metaDescription: '', socialImage: '', displayOrder: 0, isActive: true,
 };
 
 function mediaUrl(value) {
@@ -21,6 +22,7 @@ function normalizedForm(category = {}) {
     slug: category.slug || '',
     parent: category.parent?._id || category.parent || '',
     definitionKey: category.definitionKey || '',
+    customAttributes: category.customAttributes || [],
     description: category.description || '',
     image: mediaUrl(category.image),
     metaTitle: category.metaTitle || '',
@@ -148,6 +150,7 @@ export default function CategoryForm({ mode = 'Add', categoryId, onSaved, onCanc
         slug: makeSlug(form.slug || form.name),
         parent: form.parent || null,
         definitionKey: form.definitionKey || '',
+        customAttributes: form.customAttributes.map(({ optionsText, ...field }) => field),
         description: form.description.trim(),
         metaTitle: form.metaTitle.trim(),
         metaDescription: form.metaDescription.trim(),
@@ -216,6 +219,8 @@ export default function CategoryForm({ mode = 'Add', categoryId, onSaved, onCanc
             </label>
           </div>
         </section>
+
+        <CategorySpecificationFields fields={form.customAttributes} disabled={saving} onChange={fields => update('customAttributes', fields)} />
 
         <section className="category-form__section">
           <div className="category-form__section-head">

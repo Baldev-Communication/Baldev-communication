@@ -203,3 +203,13 @@ test('store-scoped sellers do not get a deployment OTP settings control', async 
   expect(screen.queryByRole('button', { name: 'OTP & SMS' })).not.toBeInTheDocument();
   expect(api.get.mock.calls.some(([path]) => path.endsWith('/sms'))).toBe(false);
 });
+
+test.each(['/admin/settings', '/seller/settings'])('sales-only settings at %s never offer or load rental operations', async route => {
+  api.get.mockResolvedValue({ storeName: 'Sales store', returnWindowDays: 7 });
+  render(<Settings route={route} />);
+  await screen.findByLabelText('Store Name');
+  expect(screen.queryByRole('button', { name: /Rental operations/ })).not.toBeInTheDocument();
+  fireEvent.change(screen.getByLabelText('Find a settings section'), { target: { value: 'rental' } });
+  expect(screen.getByText(/No matching section/)).toBeInTheDocument();
+  expect(api.get.mock.calls.some(([path]) => path.includes('/rentals'))).toBe(false);
+});

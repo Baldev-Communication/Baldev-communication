@@ -7,7 +7,7 @@ const mockCart = {}, mockToast = jest.fn();
 jest.mock('../../context/CartContext', () => ({ useCart: () => mockCart }));
 jest.mock('../../context/AuthContext', () => ({ useAuth: () => ({ user: { _id: 'user', phone: '9000000081', isPhoneVerified: true }, setToast: mockToast }) }));
 jest.mock('../../hooks/useDesktopFeedback', () => () => ({ isDesktop: true, notify: jest.fn() }));
-jest.mock('../../services/api', () => ({ get: jest.fn(), post: jest.fn() }));
+jest.mock('../../services/api', () => ({ get: jest.fn(), post: jest.fn(), patch: jest.fn() }));
 jest.mock('../../utils/analytics', () => ({ trackEvent: jest.fn() }));
 jest.mock('../../utils/razorpayCheckout', () => ({ openRazorpayCheckout: jest.fn() }));
 const selected = { _id: 'line-a', product: { _id: 'a', name: 'Selected saree', price: 999, images: [] }, quantity: 1, size: 'Free Size', color: '', selected: true };
@@ -132,6 +132,53 @@ test('order quotes, COD orders and completion use only checked bag items', async
   await waitFor(() => expect(navigate).toHaveBeenCalledWith('/order-success?id=order-1'));
   expect(api.post).toHaveBeenCalledWith('/orders/cod', expect.objectContaining({ orderItems: [expect.objectContaining({ product: 'a' })] }));
   expect(mockCart.completeCheckout).toHaveBeenCalledWith([selected]); expect(mockCart.clearCart).not.toHaveBeenCalled();
+});
+
+test.each([390, 1280])('checkout switches local and standard delivery using fresh server quotes at %ipx', async width => {
+  useMobileViewport(width);
+  const originalGet = api.get.getMockImplementation();
+  const point = { latitude: 28.61, longitude: 77.21 };
+  api.get.mockImplementation(async path => {
+    if (path === '/settings/payment-methods') return { methods: [{ key: 'COD', label: 'Cash on Delivery', enabled: true }], delivery: { standardEnabled: true, local: { enabled: true, radiusKm: 5, fee: 35, origin: point } } };
+    const result = await originalGet(path);
+    return path === '/user/addresses' ? result.map(address => ({ ...address, location: point })) : result;
+  });
+  const oldPost = api.post.getMockImplementation();
+  api.post.mockImplementation((path, body) => path === '/orders/quote' ? Promise.resolve({ totals: { totalMRP: 999, finalAmount: body.deliveryMethod === 'LOCAL' ? 1034 : 1098, deliveryCharge: body.deliveryMethod === 'LOCAL' ? 35 : 99 } }) : oldPost(path, body));
+  render(<Checkout navigate={jest.fn()} />);
+  if (width <= 1023) fireEvent.click(await screen.findByRole('button', { name: 'Continue to payment' }));
+  expect(await screen.findByRole('radio', { name: /Store local delivery/ })).toBeChecked();
+  expect(screen.getAllByRole('region', { name: 'Delivery options' })).toHaveLength(1);
+  await waitFor(() => expect(api.post).toHaveBeenCalledWith('/orders/quote', expect.objectContaining({ deliveryMethod: 'LOCAL', shippingAddress: expect.objectContaining({ location: point }) })));
+  fireEvent.click(screen.getByRole('radio', { name: /Standard delivery/ }));
+  await waitFor(() => expect(api.post).toHaveBeenCalledWith('/orders/quote', expect.objectContaining({ deliveryMethod: 'STANDARD' })));
+  await waitFor(() => expect(screen.getByRole('button', { name: /Place COD Order/i })).toBeEnabled());
+  fireEvent.click(screen.getByRole('button', { name: /Place COD Order/i }));
+  await waitFor(() => expect(api.post).toHaveBeenCalledWith('/orders/cod', expect.objectContaining({ deliveryMethod: 'STANDARD', expectedTotal: 1098 })));
+});
+
+test('local checkout saves a confirmed address pin before enabling order placement', async () => {
+  const point = { latitude: 28.62, longitude: 77.21 };
+  let addresses = [{ _id: 'addr', fullName: 'Test Customer', mobile: '9000000081', houseNo: '1', area: 'Test Road', city: 'Delhi', state: 'Delhi', pincode: '110001', isDefault: true }];
+  api.get.mockImplementation(async path => path === '/user/addresses' ? addresses : { methods: [{ key: 'COD', label: 'Cash on Delivery', enabled: true }], delivery: { standardEnabled: false, local: { enabled: true, radiusKm: 5, fee: 35, origin: point } } });
+  api.post.mockImplementation(async (path, body) => {
+    if (path !== '/orders/quote') return { items: [] };
+    if (!body.shippingAddress?.location) throw Object.assign(new Error('Confirm delivery pin'), { code: 'LOCAL_DELIVERY_LOCATION_REQUIRED' });
+    return { totals: { finalAmount: 1034, deliveryCharge: 35 } };
+  });
+  let finishPin;
+  api.patch.mockImplementation(() => new Promise(resolve => { finishPin = resolve; }));
+  Object.defineProperty(navigator, 'geolocation', { configurable: true, value: { getCurrentPosition: jest.fn(success => success({ coords: { ...point, accuracy: 15 } })) } });
+  render(<Checkout navigate={jest.fn()} />);
+  fireEvent.click(await screen.findByRole('button', { name: 'Choose on map' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Use my current location' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Confirm location' }));
+  expect(api.patch).toHaveBeenCalledWith('/user/addresses/addr/location', expect.objectContaining({ location: point, expectedAddress: expect.objectContaining({ area: 'Test Road' }) }));
+  expect(screen.getByRole('button', { name: /Place COD Order/i })).toBeDisabled();
+  addresses = addresses.map(address => ({ ...address, location: point }));
+  await act(async () => finishPin(addresses));
+  await waitFor(() => expect(screen.getByRole('button', { name: /Place COD Order/i })).toBeEnabled());
+  expect(api.post).toHaveBeenCalledWith('/orders/quote', expect.objectContaining({ deliveryMethod: 'LOCAL', shippingAddress: expect.objectContaining({ location: point }) }));
 });
 
 test('Buy Now checks out only its exact cart line and refreshes the remaining bag', async () => {
